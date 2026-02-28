@@ -1,3 +1,7 @@
+import json
+from pathlib import Path
+from uuid import uuid4
+
 import aiosqlite
 
 from app.config import settings
@@ -151,5 +155,45 @@ async def init_db():
     try:
         await db.executescript(SCHEMA_SQL)
         await db.commit()
+
+        # Auto-load seed data if DB is empty
+        cursor = await db.execute("SELECT COUNT(*) FROM agents")
+        count = (await cursor.fetchone())[0]
+        if count == 0:
+            await _load_seed_data(db)
     finally:
         await db.close()
+
+
+async def _load_seed_data(db: aiosqlite.Connection):
+    """Load seed data from seed_data/seed.json if available."""
+    seed_path = Path(__file__).resolve().parent.parent / "seed_data" / "seed.json"
+    if not seed_path.exists():
+        return
+
+    with open(seed_path) as f:
+        seed = json.load(f)
+
+    for agent in seed.get("agents", []):
+        await db.execute(
+            "INSERT INTO agents (id, name, system_prompt, model, tool_definitions) VALUES (?, ?, ?, ?, ?)",
+            (str(uuid4()), agent["name"], agent["system_prompt"], agent["model"], json.dumps(agent["tool_definitions"])),
+        )
+
+    for fixture in seed.get("fixtures", []):
+        await db.execute(
+            "INSERT INTO fixtures (id, name, type, data) VALUES (?, ?, ?, ?)",
+            (str(uuid4()), fixture["name"], fixture["type"], json.dumps(fixture["data"])),
+        )
+
+    for transcript in seed.get("transcripts", []):
+        await db.execute(
+            "INSERT INTO transcripts (id, name, content, labels, source, tags) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                str(uuid4()), transcript["name"], transcript["content"],
+                json.dumps(transcript["labels"]), transcript.get("source", "manual"),
+                json.dumps(transcript.get("tags", [])),
+            ),
+        )
+
+    await db.commit()
