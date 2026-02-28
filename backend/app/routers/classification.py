@@ -1,14 +1,19 @@
 import json
+import hashlib
 from uuid import uuid4
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 
 from app.database import get_db
 from app.schemas.classification import (
     GoldenTransactionCreate, GoldenTransactionUpdate, GoldenTransactionResponse,
     GoldenTransactionImport,
     ClassificationPromptCreate, ClassificationPromptUpdate, ClassificationPromptResponse,
-    ClassificationRunResponse, ClassificationResultResponse,
+    ClassificationRunCreate, ClassificationRunResponse, ClassificationResultResponse,
 )
+from app.services.batch_runner import run_batch
+from app.services.metrics import compute_classification_metrics
+from app.services.matchers import match_transaction_lists
+from app.services import gemini_client
 
 router = APIRouter(tags=["classification"])
 
@@ -176,6 +181,168 @@ async def update_classification_prompt(prompt_id: str, update: ClassificationPro
 
 
 # --- Classification Runs ---
+
+@router.post("/api/classification/run", response_model=ClassificationRunResponse, status_code=201)
+async def start_classification_run(body: ClassificationRunCreate, background_tasks: BackgroundTasks):
+    db = await get_db()
+    try:
+        # Validate prompt exists
+        cursor = await db.execute("SELECT * FROM classification_prompts WHERE id = ?", (body.prompt_id,))
+        prompt_row = await cursor.fetchone()
+        if not prompt_row:
+            raise HTTPException(status_code=404, detail="Classification prompt not found")
+
+        prompt_hash = hashlib.sha256(prompt_row["prompt_template"].encode()).hexdigest()[:16]
+
+        run_id = str(uuid4())
+        await db.execute(
+            "INSERT INTO classification_runs (id, prompt_id, prompt_version_hash, golden_set_name, status) VALUES (?, ?, ?, ?, ?)",
+            (run_id, body.prompt_id, prompt_hash, body.golden_set_name, "running"),
+        )
+        await db.commit()
+
+        cursor = await db.execute("SELECT * FROM classification_runs WHERE id = ?", (run_id,))
+        run_row = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    background_tasks.add_task(
+        _execute_classification_run,
+        run_id,
+        prompt_row["prompt_template"],
+        prompt_row["model"],
+        body.golden_set_name,
+    )
+
+    return _row_to_run(run_row)
+
+
+async def _execute_classification_run(run_id: str, prompt_template: str, model: str, golden_set_name: str):
+    """Execute classification eval: render prompt per golden entry, call Gemini, compare."""
+    import re
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT * FROM golden_transactions WHERE set_name = ?", (golden_set_name,)
+        )
+        golden_rows = await cursor.fetchall()
+    finally:
+        await db.close()
+
+    if not golden_rows:
+        db = await get_db()
+        try:
+            await db.execute(
+                "UPDATE classification_runs SET status = 'failed', metrics = ? WHERE id = ?",
+                (json.dumps({"error": "No golden set entries found"}), run_id),
+            )
+            await db.commit()
+        finally:
+            await db.close()
+        return
+
+    golden_entries = [_row_to_golden(row) for row in golden_rows]
+
+    async def process_entry(entry):
+        # Render prompt template
+        prompt = prompt_template
+        prompt = prompt.replace("{{input_transactions}}", json.dumps(entry["input_transactions"], indent=2))
+        ref = entry.get("reference_transactions") or {}
+        if isinstance(ref, dict):
+            prompt = prompt.replace("{{reference_list_1}}", json.dumps(ref.get("list_1", []), indent=2))
+            prompt = prompt.replace("{{reference_list_2}}", json.dumps(ref.get("list_2", []), indent=2))
+            prompt = prompt.replace("{{reference_list_3}}", json.dumps(ref.get("list_3", []), indent=2))
+        elif isinstance(ref, list) and len(ref) >= 3:
+            prompt = prompt.replace("{{reference_list_1}}", json.dumps(ref[0], indent=2))
+            prompt = prompt.replace("{{reference_list_2}}", json.dumps(ref[1], indent=2))
+            prompt = prompt.replace("{{reference_list_3}}", json.dumps(ref[2], indent=2))
+
+        contents = gemini_client.build_contents([], user_message=prompt)
+        try:
+            result = await gemini_client.generate(
+                system_prompt="You are a transaction classifier. Respond with a JSON array of classified transactions.",
+                model=model,
+                contents=contents,
+            )
+            text = result.get("text", "")
+            predicted = _parse_json_array(text)
+            match_details = match_transaction_lists(predicted, entry["expected_output"])
+
+            return {
+                "golden_id": entry["id"],
+                "predicted_output": predicted,
+                "expected_output": entry["expected_output"],
+                "match_details": match_details,
+                "raw_response": result.get("raw_response"),
+                "token_usage": result.get("token_usage"),
+            }
+        except Exception as e:
+            return {
+                "golden_id": entry["id"],
+                "predicted_output": [],
+                "expected_output": entry["expected_output"],
+                "match_details": {"error": str(e)},
+                "raw_response": None,
+                "token_usage": None,
+            }
+
+    results = await run_batch(golden_entries, process_entry)
+
+    # Save results and compute metrics
+    db = await get_db()
+    try:
+        for r in results:
+            result_id = str(uuid4())
+            await db.execute(
+                "INSERT INTO classification_results (id, run_id, golden_id, predicted_output, match_details, raw_response, token_usage) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    result_id, run_id, r["golden_id"],
+                    json.dumps(r["predicted_output"]),
+                    json.dumps(r["match_details"]),
+                    json.dumps(r["raw_response"]) if r["raw_response"] else None,
+                    json.dumps(r["token_usage"]) if r["token_usage"] else None,
+                ),
+            )
+
+        metrics = compute_classification_metrics(results)
+
+        await db.execute(
+            "UPDATE classification_runs SET status = 'completed', metrics = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (json.dumps(metrics), run_id),
+        )
+        await db.commit()
+    except Exception as e:
+        await db.execute(
+            "UPDATE classification_runs SET status = 'failed', metrics = ? WHERE id = ?",
+            (json.dumps({"error": str(e)}), run_id),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+
+def _parse_json_array(text: str) -> list:
+    """Parse a JSON array from Gemini response."""
+    import re
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\n?", "", text)
+        text = re.sub(r"\n?```$", "", text)
+    try:
+        result = json.loads(text)
+        if isinstance(result, list):
+            return result
+        return [result]
+    except json.JSONDecodeError:
+        match = re.search(r'\[.*\]', text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group())
+            except json.JSONDecodeError:
+                pass
+        return []
+
 
 @router.get("/api/classification/runs", response_model=list[ClassificationRunResponse])
 async def list_classification_runs():

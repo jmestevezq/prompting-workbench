@@ -1,12 +1,16 @@
 import json
+import hashlib
 from uuid import uuid4
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 
 from app.database import get_db
 from app.schemas.autorater import (
     AutoraterCreate, AutoraterUpdate, AutoraterResponse,
-    EvalRunResponse, EvalResultResponse,
+    EvalRunCreate, EvalRunResponse, EvalResultResponse,
 )
+from app.services.batch_runner import run_batch
+from app.services.metrics import compute_binary_metrics
+from app.services import gemini_client
 
 router = APIRouter(tags=["autoraters"])
 
@@ -125,6 +129,170 @@ async def get_eval_results(run_id: str):
         return [_row_to_eval_result(row) for row in rows]
     finally:
         await db.close()
+
+
+@router.post("/api/eval/run", response_model=EvalRunResponse, status_code=201)
+async def start_eval_run(body: EvalRunCreate, background_tasks: BackgroundTasks):
+    db = await get_db()
+    try:
+        # Validate autorater exists
+        cursor = await db.execute("SELECT * FROM autoraters WHERE id = ?", (body.autorater_id,))
+        autorater_row = await cursor.fetchone()
+        if not autorater_row:
+            raise HTTPException(status_code=404, detail="Autorater not found")
+
+        prompt_hash = hashlib.sha256(autorater_row["prompt"].encode()).hexdigest()[:16]
+
+        # Create eval run
+        run_id = str(uuid4())
+        await db.execute(
+            "INSERT INTO eval_runs (id, autorater_id, prompt_version_hash, transcript_ids, status) VALUES (?, ?, ?, ?, ?)",
+            (run_id, body.autorater_id, prompt_hash, json.dumps(body.transcript_ids), "running"),
+        )
+        await db.commit()
+
+        cursor = await db.execute("SELECT * FROM eval_runs WHERE id = ?", (run_id,))
+        run_row = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    # Run evaluation in background
+    background_tasks.add_task(
+        _execute_eval_run,
+        run_id,
+        autorater_row["prompt"],
+        autorater_row["model"],
+        body.transcript_ids,
+    )
+
+    return _row_to_eval_run(run_row)
+
+
+async def _execute_eval_run(run_id: str, autorater_prompt: str, model: str, transcript_ids: list[str]):
+    """Execute the eval run: send each transcript through autorater, compute metrics."""
+    db = await get_db()
+    try:
+        # Load transcripts
+        transcripts = []
+        for tid in transcript_ids:
+            cursor = await db.execute("SELECT * FROM transcripts WHERE id = ?", (tid,))
+            row = await cursor.fetchone()
+            if row:
+                transcripts.append({
+                    "id": row["id"],
+                    "content": row["content"],
+                    "labels": json.loads(row["labels"]) if row["labels"] else {},
+                })
+    finally:
+        await db.close()
+
+    if not transcripts:
+        db = await get_db()
+        try:
+            await db.execute(
+                "UPDATE eval_runs SET status = 'failed', metrics = ? WHERE id = ?",
+                (json.dumps({"error": "No transcripts found"}), run_id),
+            )
+            await db.commit()
+        finally:
+            await db.close()
+        return
+
+    # Process each transcript
+    async def process_transcript(transcript):
+        prompt = autorater_prompt.replace("{{transcript}}", transcript["content"])
+        contents = gemini_client.build_contents([], user_message=prompt)
+        try:
+            result = await gemini_client.generate(
+                system_prompt="You are an evaluation autorater. Respond with JSON only.",
+                model=model,
+                contents=contents,
+            )
+            # Parse response as JSON
+            text = result.get("text", "")
+            # Try to extract JSON from response
+            predicted_labels = _parse_json_response(text)
+
+            return {
+                "transcript_id": transcript["id"],
+                "predicted_labels": predicted_labels,
+                "ground_truth_labels": transcript["labels"],
+                "raw_response": result.get("raw_response"),
+                "token_usage": result.get("token_usage"),
+            }
+        except Exception as e:
+            return {
+                "transcript_id": transcript["id"],
+                "predicted_labels": {"error": str(e)},
+                "ground_truth_labels": transcript["labels"],
+                "raw_response": None,
+                "token_usage": None,
+            }
+
+    results = await run_batch(transcripts, process_transcript)
+
+    # Compute match for each result and save
+    eval_results = []
+    db = await get_db()
+    try:
+        for r in results:
+            match = r["predicted_labels"] == r["ground_truth_labels"]
+            result_id = str(uuid4())
+            await db.execute(
+                "INSERT INTO eval_results (id, run_id, transcript_id, predicted_labels, ground_truth_labels, match, raw_response, token_usage) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    result_id, run_id, r["transcript_id"],
+                    json.dumps(r["predicted_labels"]),
+                    json.dumps(r["ground_truth_labels"]),
+                    1 if match else 0,
+                    json.dumps(r["raw_response"]) if r["raw_response"] else None,
+                    json.dumps(r["token_usage"]) if r["token_usage"] else None,
+                ),
+            )
+            eval_results.append({
+                "match": match,
+                "predicted_labels": r["predicted_labels"],
+                "ground_truth_labels": r["ground_truth_labels"],
+            })
+
+        # Compute metrics
+        metrics = compute_binary_metrics(eval_results)
+
+        await db.execute(
+            "UPDATE eval_runs SET status = 'completed', metrics = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (json.dumps(metrics), run_id),
+        )
+        await db.commit()
+    except Exception as e:
+        await db.execute(
+            "UPDATE eval_runs SET status = 'failed', metrics = ? WHERE id = ?",
+            (json.dumps({"error": str(e)}), run_id),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+
+def _parse_json_response(text: str) -> dict:
+    """Try to parse JSON from Gemini response text."""
+    import re
+    # Try direct parse
+    text = text.strip()
+    # Remove markdown code blocks if present
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\n?", "", text)
+        text = re.sub(r"\n?```$", "", text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # Try to find JSON object in text
+        match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group())
+            except json.JSONDecodeError:
+                pass
+        return {"raw_text": text, "parse_error": "Could not parse JSON from response"}
 
 
 @router.get("/api/eval/runs/{run_id}/diff/{other_id}")
