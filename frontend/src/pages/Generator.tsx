@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import type { Transcript } from '../api/types'
 import PromptEditor from '../components/PromptEditor'
+import TranscriptPicker from '../components/TranscriptPicker'
 
 export default function Generator() {
   const [transcripts, setTranscripts] = useState<Transcript[]>([])
-  const [selectedRefIds, setSelectedRefIds] = useState<string[]>([])
+  const [selectedRefIds, setSelectedRefIds] = useState<Set<string>>(new Set())
   const [prompt, setPrompt] = useState('Generate 5 transcripts where the agent makes a math error when calculating totals.')
   const [count, setCount] = useState(5)
   const [model, setModel] = useState('gemini-2.5-pro')
@@ -17,19 +18,13 @@ export default function Generator() {
     api.listTranscripts().then(setTranscripts)
   }, [])
 
-  const toggleRef = (id: string) => {
-    setSelectedRefIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    )
-  }
-
   const handleGenerate = async () => {
-    if (!selectedRefIds.length) return
+    if (!selectedRefIds.size) return
     setGenerating(true)
     setGenerated([])
     try {
       const result = await api.generateTranscripts({
-        reference_transcript_ids: selectedRefIds,
+        reference_transcript_ids: Array.from(selectedRefIds),
         prompt,
         count,
         model,
@@ -51,30 +46,14 @@ export default function Generator() {
 
         {/* Reference Transcripts */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Reference Transcripts ({selectedRefIds.length} selected)
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Reference Transcripts
           </label>
-          <div className="max-h-48 overflow-auto border border-gray-200 rounded">
-            {transcripts.map((t) => (
-              <label
-                key={t.id}
-                className={`flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 ${
-                  selectedRefIds.includes(t.id) ? 'bg-blue-50' : ''
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedRefIds.includes(t.id)}
-                  onChange={() => toggleRef(t.id)}
-                />
-                {t.name || t.id.slice(0, 8)}
-                <span className="text-xs text-gray-400 ml-auto">{t.source}</span>
-              </label>
-            ))}
-            {!transcripts.length && (
-              <div className="text-sm text-gray-400 p-3">No transcripts yet. Import some first.</div>
-            )}
-          </div>
+          <TranscriptPicker
+            transcripts={transcripts}
+            selectedIds={selectedRefIds}
+            onSelectionChange={setSelectedRefIds}
+          />
         </div>
 
         {/* Generation Prompt */}
@@ -112,7 +91,7 @@ export default function Generator() {
 
         <button
           onClick={handleGenerate}
-          disabled={generating || !selectedRefIds.length}
+          disabled={generating || !selectedRefIds.size}
           className="bg-blue-600 text-white px-6 py-2 rounded text-sm font-medium disabled:opacity-50"
         >
           {generating ? 'Generating...' : 'Generate Transcripts'}

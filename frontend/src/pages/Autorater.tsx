@@ -6,6 +6,7 @@ import MetricsCard from '../components/MetricsCard'
 import StatusBadge from '../components/StatusBadge'
 import PromptEditor from '../components/PromptEditor'
 import JsonEditor from '../components/JsonEditor'
+import TranscriptPicker from '../components/TranscriptPicker'
 
 type Tab = 'transcripts' | 'autoraters' | 'eval-runs'
 
@@ -343,7 +344,6 @@ function EvalRunsTab() {
   const [autoraters, setAutoraters] = useState<AutoraterType[]>([])
   const [transcripts, setTranscripts] = useState<Transcript[]>([])
   const [selectedTranscriptIds, setSelectedTranscriptIds] = useState<Set<string>>(new Set())
-  const [showTranscripts, setShowTranscripts] = useState(false)
   const [runs, setRuns] = useState<EvalRun[]>([])
   const [selectedRun, setSelectedRun] = useState<EvalRun | null>(null)
   const [results, setResults] = useState<EvalResult[]>([])
@@ -351,15 +351,13 @@ function EvalRunsTab() {
   const [launching, setLaunching] = useState(false)
   const pollingRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
 
-  // Eval tags for per-tag P/R (replaces pass_tags/fail_tags)
+  // Eval tags for per-tag P/R
   const [selectedEvalTags, setSelectedEvalTags] = useState<Set<string>>(new Set())
   const [showEvalTags, setShowEvalTags] = useState(false)
 
-  // Collect all unique tags from selected transcripts
+  // Collect annotated tags from selected transcripts
   const selectedTranscripts = transcripts.filter((t) => selectedTranscriptIds.has(t.id))
-  const allTags = Array.from(new Set(transcripts.flatMap((t) => t.tags ?? [])))
 
-  // Tags that have P/N annotations in any selected transcript
   const annotatedTags = Array.from(new Set(
     selectedTranscripts.flatMap((t) => {
       const labels = t.labels ?? {}
@@ -368,32 +366,6 @@ function EvalRunsTab() {
         .map(([k]) => k)
     })
   ))
-
-  // Tag counts for chips
-  const tagCounts: Record<string, number> = {}
-  for (const t of transcripts) {
-    for (const tag of t.tags ?? []) {
-      tagCounts[tag] = (tagCounts[tag] ?? 0) + 1
-    }
-  }
-
-  // Toggle all transcripts with a given tag
-  const toggleTagChip = (tag: string) => {
-    const idsWithTag = transcripts.filter((t) => (t.tags ?? []).includes(tag)).map((t) => t.id)
-    const allSelected = idsWithTag.every((id) => selectedTranscriptIds.has(id))
-    const next = new Set(selectedTranscriptIds)
-    if (allSelected) {
-      idsWithTag.forEach((id) => next.delete(id))
-    } else {
-      idsWithTag.forEach((id) => next.add(id))
-    }
-    setSelectedTranscriptIds(next)
-  }
-
-  const isTagFullySelected = (tag: string) => {
-    const idsWithTag = transcripts.filter((t) => (t.tags ?? []).includes(tag)).map((t) => t.id)
-    return idsWithTag.length > 0 && idsWithTag.every((id) => selectedTranscriptIds.has(id))
-  }
 
   // Poll a running eval run until it completes
   const pollRun = useCallback((runId: string) => {
@@ -492,12 +464,11 @@ function EvalRunsTab() {
               {autoraters.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </div>
-          <button
-            onClick={() => setShowTranscripts(!showTranscripts)}
-            className="text-xs text-blue-600 hover:text-blue-800 py-1.5"
-          >
-            {selectedTranscriptIds.size} of {transcripts.length} transcripts {showTranscripts ? '▲' : '▼'}
-          </button>
+          <TranscriptPicker
+            transcripts={transcripts}
+            selectedIds={selectedTranscriptIds}
+            onSelectionChange={setSelectedTranscriptIds}
+          />
           <button
             onClick={() => setShowEvalTags(!showEvalTags)}
             className={`text-xs py-1.5 ${selectedEvalTags.size ? 'text-green-600 hover:text-green-800' : 'text-gray-500 hover:text-gray-700'}`}
@@ -512,50 +483,6 @@ function EvalRunsTab() {
             {launching ? 'Launching...' : 'Run Evaluation'}
           </button>
         </div>
-
-        {showTranscripts && (
-          <div className="mb-3">
-            {/* Tag chips for quick transcript filtering */}
-            {allTags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {allTags.map((tag) => {
-                  const selected = isTagFullySelected(tag)
-                  return (
-                    <button
-                      key={tag}
-                      onClick={() => toggleTagChip(tag)}
-                      className={`text-xs px-2 py-1 rounded-full border transition-colors ${
-                        selected
-                          ? 'bg-blue-500 text-white border-blue-500'
-                          : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
-                      }`}
-                    >
-                      {tag} ({tagCounts[tag]})
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-            <div className="border border-gray-200 rounded max-h-56 overflow-auto">
-            <DataTable
-              columns={[
-                { key: 'name', header: 'Name', sortable: true },
-                { key: 'source', header: 'Source', render: (r) => <StatusBadge status={(r as Transcript).source} /> },
-                { key: 'tags', header: 'Tags', render: (r) => {
-                  const t = r as Transcript
-                  return (t.tags ?? []).map((tag) => (
-                    <span key={tag} className="inline-block mr-1 text-xs bg-blue-50 text-blue-600 rounded px-1">{tag}</span>
-                  ))
-                }},
-              ]}
-              data={transcripts}
-              selectable
-              selectedIds={selectedTranscriptIds}
-              onSelectionChange={setSelectedTranscriptIds}
-            />
-            </div>
-          </div>
-        )}
 
         {showEvalTags && (
           <div className="border border-gray-200 rounded p-3">
