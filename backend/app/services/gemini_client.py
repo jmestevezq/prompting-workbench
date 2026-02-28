@@ -148,6 +148,34 @@ def _serialize_contents(contents: list[types.Content]) -> list[dict]:
     return result
 
 
+def _serialize_schema(schema) -> Optional[dict]:
+    """Convert a Gemini SDK Schema object to a plain dict."""
+    if schema is None:
+        return None
+    if isinstance(schema, dict):
+        return schema
+    # Use model_dump if available (Pydantic-based), else to_dict, else manual
+    if hasattr(schema, 'model_dump'):
+        return schema.model_dump(exclude_none=True)
+    if hasattr(schema, 'to_dict'):
+        return schema.to_dict()
+    # Manual fallback
+    result: dict[str, Any] = {}
+    if hasattr(schema, 'type') and schema.type:
+        result["type"] = str(schema.type)
+    if hasattr(schema, 'properties') and schema.properties:
+        result["properties"] = {
+            k: _serialize_schema(v) for k, v in schema.properties.items()
+        }
+    if hasattr(schema, 'required') and schema.required:
+        result["required"] = list(schema.required)
+    if hasattr(schema, 'description') and schema.description:
+        result["description"] = schema.description
+    if hasattr(schema, 'items') and schema.items:
+        result["items"] = _serialize_schema(schema.items)
+    return result if result else None
+
+
 def _serialize_tool(tool: types.Tool) -> list[dict]:
     if not tool or not tool.function_declarations:
         return []
@@ -156,7 +184,7 @@ def _serialize_tool(tool: types.Tool) -> list[dict]:
         result.append({
             "name": fd.name,
             "description": fd.description,
-            "parameters": fd.parameters,
+            "parameters": _serialize_schema(fd.parameters),
         })
     return result
 
