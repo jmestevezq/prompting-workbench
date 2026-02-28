@@ -12,9 +12,14 @@ Build instructions: docs/setup-guide.md
 - Model: gemini-2.5-pro via google-genai SDK
 
 ## Key Commands
-- Backend: cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --port 8000
-- Frontend: cd frontend && npm run dev
-- Both: make dev
+- Both (dev): pnpm dev
+- Frontend only: pnpm nx run frontend:dev
+- Backend only: pnpm nx run backend:dev
+- All tests: pnpm test
+- Frontend tests: pnpm nx run frontend:test
+- Backend tests: pnpm nx run backend:test
+- Build: pnpm build
+- Install backend deps: pnpm nx run backend:install
 
 ## Conventions
 - All IDs: uuid4 strings

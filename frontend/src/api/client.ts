@@ -73,8 +73,11 @@ export const api = {
   updateAutorater: (id: string, data: Partial<AutoraterCreate>) => request<Autorater>(`/autoraters/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Eval Runs
-  startEvalRun: (autorater_id: string, transcript_ids: string[]) =>
-    request<EvalRun>('/eval/run', { method: 'POST', body: JSON.stringify({ autorater_id, transcript_ids }) }),
+  startEvalRun: (autorater_id: string, transcript_ids: string[], eval_tags?: string[]) =>
+    request<EvalRun>('/eval/run', { method: 'POST', body: JSON.stringify({
+      autorater_id, transcript_ids,
+      eval_tags: eval_tags?.length ? eval_tags : undefined,
+    }) }),
   listEvalRuns: () => request<EvalRun[]>('/eval/runs'),
   getEvalRun: (id: string) => request<EvalRun>(`/eval/runs/${id}`),
   getEvalResults: (runId: string) => request<EvalResult[]>(`/eval/runs/${runId}/results`),

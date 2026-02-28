@@ -1,0 +1,34 @@
+{
+  "name": "backend",
+  "projectType": "application",
+  "sourceRoot": "backend/app",
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "source .venv/bin/activate && uvicorn app.main:app --reload --port 8000",
+        "cwd": "backend"
+      }
+    },
+    "install": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "python3 -m venv .venv",
+          "source .venv/bin/activate && pip install -r requirements.txt"
+        ],
+        "cwd": "backend",
+        "parallel": false
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "source .venv/bin/activate && python -m pytest tests/ -v",
+        "cwd": "backend"
+      },
+      "inputs": ["{projectRoot}/app/**/*", "{projectRoot}/tests/**/*"],
+      "cache": true
+    }
+  }
+}

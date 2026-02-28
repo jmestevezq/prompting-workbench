@@ -146,8 +146,10 @@ async def start_eval_run(body: EvalRunCreate, background_tasks: BackgroundTasks)
         # Create eval run
         run_id = str(uuid4())
         await db.execute(
-            "INSERT INTO eval_runs (id, autorater_id, prompt_version_hash, transcript_ids, status) VALUES (?, ?, ?, ?, ?)",
-            (run_id, body.autorater_id, prompt_hash, json.dumps(body.transcript_ids), "running"),
+            "INSERT INTO eval_runs (id, autorater_id, prompt_version_hash, transcript_ids, eval_tags, status) VALUES (?, ?, ?, ?, ?, ?)",
+            (run_id, body.autorater_id, prompt_hash, json.dumps(body.transcript_ids),
+             json.dumps(body.eval_tags) if body.eval_tags else None,
+             "running"),
         )
         await db.commit()
 
@@ -163,25 +165,37 @@ async def start_eval_run(body: EvalRunCreate, background_tasks: BackgroundTasks)
         autorater_row["prompt"],
         autorater_row["model"],
         body.transcript_ids,
+        body.eval_tags or [],
     )
 
     return _row_to_eval_run(run_row)
 
 
-async def _execute_eval_run(run_id: str, autorater_prompt: str, model: str, transcript_ids: list[str]):
-    """Execute the eval run: send each transcript through autorater, compute metrics."""
+async def _execute_eval_run(
+    run_id: str, autorater_prompt: str, model: str, transcript_ids: list[str],
+    eval_tags: list[str],
+):
+    """Execute the eval run: send each transcript through autorater, compute metrics.
+
+    eval_tags: which tags to compute per-tag precision/recall for.
+    Ground truth comes from each transcript's labels field:
+    - labels[tag] == "P" → positive example (autorater should say "pass")
+    - labels[tag] == "N" → negative example (autorater should say "fail")
+    """
     db = await get_db()
+
     try:
-        # Load transcripts
+        # Load transcripts with their labels
         transcripts = []
         for tid in transcript_ids:
             cursor = await db.execute("SELECT * FROM transcripts WHERE id = ?", (tid,))
             row = await cursor.fetchone()
             if row:
+                labels = json.loads(row["labels"]) if row["labels"] else {}
                 transcripts.append({
                     "id": row["id"],
                     "content": row["content"],
-                    "labels": json.loads(row["labels"]) if row["labels"] else {},
+                    "labels": labels,
                 })
     finally:
         await db.close()
@@ -208,15 +222,13 @@ async def _execute_eval_run(run_id: str, autorater_prompt: str, model: str, tran
                 model=model,
                 contents=contents,
             )
-            # Parse response as JSON
             text = result.get("text", "")
-            # Try to extract JSON from response
             predicted_labels = _parse_json_response(text)
 
             return {
                 "transcript_id": transcript["id"],
                 "predicted_labels": predicted_labels,
-                "ground_truth_labels": transcript["labels"],
+                "labels": transcript["labels"],
                 "raw_response": result.get("raw_response"),
                 "token_usage": result.get("token_usage"),
             }
@@ -224,39 +236,88 @@ async def _execute_eval_run(run_id: str, autorater_prompt: str, model: str, tran
             return {
                 "transcript_id": transcript["id"],
                 "predicted_labels": {"error": str(e)},
-                "ground_truth_labels": transcript["labels"],
+                "labels": transcript["labels"],
                 "raw_response": None,
                 "token_usage": None,
             }
 
     results = await run_batch(transcripts, process_transcript)
 
-    # Compute match for each result and save
+    # Save results and compute metrics
     eval_results = []
     db = await get_db()
     try:
         for r in results:
-            match = r["predicted_labels"] == r["ground_truth_labels"]
+            predicted = r["predicted_labels"]
+            assessment = predicted.get("assessment") if isinstance(predicted, dict) else None
+            labels = r["labels"]
+
+            # ground_truth_labels: transcript's labels filtered to selected eval_tags
+            ground_truth = {tag: labels[tag] for tag in eval_tags if tag in labels}
+
             result_id = str(uuid4())
             await db.execute(
                 "INSERT INTO eval_results (id, run_id, transcript_id, predicted_labels, ground_truth_labels, match, raw_response, token_usage) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     result_id, run_id, r["transcript_id"],
-                    json.dumps(r["predicted_labels"]),
-                    json.dumps(r["ground_truth_labels"]),
-                    1 if match else 0,
+                    json.dumps(predicted),
+                    json.dumps(ground_truth),
+                    None,  # match is no longer a single boolean
                     json.dumps(r["raw_response"]) if r["raw_response"] else None,
                     json.dumps(r["token_usage"]) if r["token_usage"] else None,
                 ),
             )
             eval_results.append({
-                "match": match,
-                "predicted_labels": r["predicted_labels"],
-                "ground_truth_labels": r["ground_truth_labels"],
+                "assessment": assessment,
+                "labels": labels,
             })
 
         # Compute metrics
-        metrics = compute_binary_metrics(eval_results)
+        total = len(eval_results)
+        passed = sum(1 for r in eval_results if r.get("assessment") == "pass")
+        pass_rate = passed / total if total > 0 else 0
+
+        metrics = {
+            "pass_rate": round(pass_rate, 4),
+            "total": total,
+            "passed": passed,
+        }
+
+        # Per-tag precision/recall when eval_tags provided
+        if eval_tags:
+            per_tag = {}
+            for tag in eval_tags:
+                tp = fp = fn = tn = 0
+                for r in eval_results:
+                    label = r["labels"].get(tag)
+                    if label not in ("P", "N"):
+                        continue  # not annotated for this tag
+                    assessment = r.get("assessment")
+                    if assessment == "pass" and label == "P":
+                        tp += 1
+                    elif assessment == "pass" and label == "N":
+                        fp += 1
+                    elif assessment == "fail" and label == "P":
+                        fn += 1
+                    elif assessment == "fail" and label == "N":
+                        tn += 1
+
+                annotated = tp + fp + fn + tn
+                precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+                recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+                f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+
+                per_tag[tag] = {
+                    "precision": round(precision, 4),
+                    "recall": round(recall, 4),
+                    "f1": round(f1, 4),
+                    "tp": tp,
+                    "fp": fp,
+                    "fn": fn,
+                    "tn": tn,
+                    "annotated": annotated,
+                }
+            metrics["per_tag"] = per_tag
 
         await db.execute(
             "UPDATE eval_runs SET status = 'completed', metrics = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -343,6 +404,7 @@ def _row_to_eval_run(row) -> dict:
         "autorater_id": row["autorater_id"],
         "prompt_version_hash": row["prompt_version_hash"],
         "transcript_ids": json.loads(row["transcript_ids"]) if row["transcript_ids"] else [],
+        "eval_tags": json.loads(row["eval_tags"]) if row["eval_tags"] else None,
         "status": row["status"],
         "metrics": json.loads(row["metrics"]) if row["metrics"] else None,
         "created_at": row["created_at"] or "",

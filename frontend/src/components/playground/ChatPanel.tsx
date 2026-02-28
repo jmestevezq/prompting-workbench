@@ -45,7 +45,7 @@ export default function ChatPanel({
   }
 
   return (
-    <div className="flex flex-col border-r border-gray-200 bg-white">
+    <div className="flex flex-col border-r border-gray-200 bg-white overflow-hidden">
       {/* Status bar */}
       <div className="px-4 py-2 border-b border-gray-200 flex items-center gap-2 text-xs text-gray-500">
         <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-400' : 'bg-gray-300'}`} />

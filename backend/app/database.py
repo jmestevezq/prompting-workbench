@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS eval_runs (
     autorater_id TEXT REFERENCES autoraters(id),
     prompt_version_hash TEXT,
     transcript_ids JSON NOT NULL,
+    eval_tags JSON,
     status TEXT DEFAULT 'pending',
     metrics JSON,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -155,6 +156,13 @@ async def init_db():
     try:
         await db.executescript(SCHEMA_SQL)
         await db.commit()
+
+        # Migrate: add eval_tags to eval_runs if missing (replaces pass_tags/fail_tags)
+        cursor = await db.execute("PRAGMA table_info(eval_runs)")
+        cols = {row["name"] for row in await cursor.fetchall()}
+        if "eval_tags" not in cols:
+            await db.execute("ALTER TABLE eval_runs ADD COLUMN eval_tags JSON")
+            await db.commit()
 
         # Auto-load seed data if DB is empty
         cursor = await db.execute("SELECT COUNT(*) FROM agents")

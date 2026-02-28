@@ -144,6 +144,7 @@ export interface EvalRun {
   autorater_id: string
   prompt_version_hash?: string
   transcript_ids: string[]
+  eval_tags?: string[]
   status: string
   metrics?: EvalMetrics
   created_at: string
@@ -151,21 +152,19 @@ export interface EvalRun {
 }
 
 export interface EvalMetrics {
-  accuracy: number
+  pass_rate: number
   total: number
-  correct: number
-  per_label?: Record<string, LabelMetrics>
-  confusion_matrix?: Record<string, Record<string, number>>
-}
-
-export interface LabelMetrics {
-  precision: number
-  recall: number
-  f1: number
-  tp: number
-  fp: number
-  fn: number
-  tn: number
+  passed: number
+  per_tag?: Record<string, {
+    precision: number
+    recall: number
+    f1: number
+    tp: number
+    fp: number
+    fn: number
+    tn: number
+    annotated: number
+  }>
 }
 
 export interface EvalResult {

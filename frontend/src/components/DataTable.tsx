@@ -16,6 +16,9 @@ interface DataTableProps {
   onRowClick?: (row: any) => void
   keyField?: string
   emptyMessage?: string
+  selectable?: boolean
+  selectedIds?: Set<string>
+  onSelectionChange?: (ids: Set<string>) => void
 }
 
 export default function DataTable({
@@ -24,6 +27,9 @@ export default function DataTable({
   onRowClick,
   keyField = 'id',
   emptyMessage = 'No data',
+  selectable,
+  selectedIds,
+  onSelectionChange,
 }: DataTableProps) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
@@ -46,6 +52,26 @@ export default function DataTable({
       })
     : data
 
+  const allSelected = selectable && data.length > 0 && selectedIds?.size === data.length
+  const someSelected = selectable && selectedIds && selectedIds.size > 0 && selectedIds.size < data.length
+
+  const toggleAll = () => {
+    if (!onSelectionChange) return
+    if (allSelected) {
+      onSelectionChange(new Set())
+    } else {
+      onSelectionChange(new Set(data.map((row) => String(row[keyField]))))
+    }
+  }
+
+  const toggleRow = (id: string) => {
+    if (!onSelectionChange || !selectedIds) return
+    const next = new Set(selectedIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    onSelectionChange(next)
+  }
+
   if (!data.length) {
     return <div className="text-center py-8 text-gray-400 text-sm">{emptyMessage}</div>
   }
@@ -55,6 +81,17 @@ export default function DataTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-200">
+            {selectable && (
+              <th className="px-3 py-2 w-8">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  ref={(el) => { if (el) el.indeterminate = !!someSelected }}
+                  onChange={toggleAll}
+                  className="rounded border-gray-300"
+                />
+              </th>
+            )}
             {columns.map((col) => (
               <th
                 key={col.key}
@@ -68,19 +105,33 @@ export default function DataTable({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((row) => (
-            <tr
-              key={String(row[keyField])}
-              className={`border-b border-gray-100 ${onRowClick ? 'cursor-pointer hover:bg-gray-50' : ''}`}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
-            >
-              {columns.map((col) => (
-                <td key={col.key} className="px-3 py-2 text-gray-800">
-                  {col.render ? col.render(row) : String(row[col.key] ?? '')}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {sorted.map((row) => {
+            const rowId = String(row[keyField])
+            return (
+              <tr
+                key={rowId}
+                className={`border-b border-gray-100 ${onRowClick ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+              >
+                {selectable && (
+                  <td className="px-3 py-2 w-8">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds?.has(rowId) ?? false}
+                      onChange={() => toggleRow(rowId)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="rounded border-gray-300"
+                    />
+                  </td>
+                )}
+                {columns.map((col) => (
+                  <td key={col.key} className="px-3 py-2 text-gray-800">
+                    {col.render ? col.render(row) : String(row[col.key] ?? '')}
+                  </td>
+                ))}
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>

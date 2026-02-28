@@ -28,6 +28,7 @@ class AutoraterResponse(BaseModel):
 class EvalRunCreate(BaseModel):
     autorater_id: str
     transcript_ids: list[str]
+    eval_tags: Optional[list[str]] = None
 
 
 class EvalRunResponse(BaseModel):
@@ -35,6 +36,7 @@ class EvalRunResponse(BaseModel):
     autorater_id: str
     prompt_version_hash: Optional[str] = None
     transcript_ids: list[str]
+    eval_tags: Optional[list[str]] = None
     status: str
     metrics: Optional[Any] = None
     created_at: str
