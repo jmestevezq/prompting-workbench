@@ -1,5 +1,13 @@
-"""Core agent loop: prompt building, Gemini calling, tool execution, debug capture."""
+"""Core agent loop: prompt building, Gemini calling, tool execution, debug capture.
 
+Matches ADK's internal behavior:
+- Multiple function_calls grouped into one Content(role="model", parts=[fc1, fc2, ...])
+- All function_responses grouped into one Content(role="user", parts=[fr1, fr2, ...])
+- Tool calls executed in parallel via asyncio.gather (like ADK's handle_function_calls_async)
+- Async Gemini API calls (non-blocking)
+"""
+
+import asyncio
 import json
 from uuid import uuid4
 from typing import Any, AsyncGenerator
@@ -99,6 +107,20 @@ class SessionState:
             await db.close()
 
 
+def _execute_tool_call(
+    tool_name: str,
+    tool_args: dict,
+    state: SessionState,
+    tool_response_overrides: dict | None,
+) -> Any:
+    """Execute a single tool call, checking overrides first (like ADK's tool dispatch)."""
+    if tool_response_overrides and tool_name in tool_response_overrides:
+        return tool_response_overrides[tool_name]
+    if state.tool_overrides.get(tool_name, {}).get("active"):
+        return state.tool_overrides[tool_name]["data"]
+    return execute_tool(tool_name, tool_args, state.fixtures)
+
+
 async def run_agent_turn(
     state: SessionState,
     user_message: str | None = None,
@@ -108,7 +130,11 @@ async def run_agent_turn(
 ) -> AsyncGenerator[dict, None]:
     """Execute one agent turn: call Gemini, handle tool calls, yield streaming events.
 
-    Yields dicts with type: agent_chunk, tool_call, tool_response, turn_complete, error
+    Matches ADK's agent loop:
+    - Groups multiple function_calls into one Content(role="model")
+    - Executes tools in parallel via asyncio
+    - Groups all function_responses into one Content(role="user")
+    - Loops until Gemini returns a text response
     """
     if not state.agent_config:
         yield {"type": "error", "message": "Session not loaded"}
@@ -173,34 +199,43 @@ async def run_agent_turn(
 
         # Check for function calls
         if result["function_calls"]:
+            # --- ADK-style: group all function calls into one Content(role="model") ---
+            fc_parts = []
             for fc in result["function_calls"]:
-                tool_name = fc["name"]
-                tool_args = fc["args"]
-
+                fc_parts.append(types.Part.from_function_call(
+                    name=fc["name"],
+                    args=fc["args"],
+                ))
                 all_tool_calls.append(fc)
-                yield {"type": "tool_call", "tool_name": tool_name, "arguments": tool_args}
+                yield {"type": "tool_call", "tool_name": fc["name"], "arguments": fc["args"]}
 
-                # Check for manual override first, then tool_response_overrides, then mock
-                tool_result = None
-                if tool_response_overrides and tool_name in tool_response_overrides:
-                    tool_result = tool_response_overrides[tool_name]
-                elif state.tool_overrides.get(tool_name, {}).get("active"):
-                    tool_result = state.tool_overrides[tool_name]["data"]
-                else:
-                    tool_result = execute_tool(tool_name, tool_args, state.fixtures)
+            contents.append(types.Content(role="model", parts=fc_parts))
 
-                all_tool_responses.append({"name": tool_name, "response": tool_result})
-                yield {"type": "tool_response", "tool_name": tool_name, "result": tool_result}
-
-                # Add function call and response to contents for next iteration
-                fc_part = types.Part.from_function_call(name=tool_name, args=tool_args)
-                contents.append(types.Content(role="model", parts=[fc_part]))
-
-                fr_part = types.Part.from_function_response(
-                    name=tool_name,
-                    response={"result": tool_result} if not isinstance(tool_result, dict) else tool_result,
+            # --- ADK-style: execute all tools in parallel ---
+            loop = asyncio.get_event_loop()
+            tasks = [
+                loop.run_in_executor(
+                    None,
+                    _execute_tool_call,
+                    fc["name"], fc["args"], state, tool_response_overrides,
                 )
-                contents.append(types.Content(role="user", parts=[fr_part]))
+                for fc in result["function_calls"]
+            ]
+            tool_results = await asyncio.gather(*tasks)
+
+            # --- ADK-style: group all function responses into one Content(role="user") ---
+            fr_parts = []
+            for fc, tool_result in zip(result["function_calls"], tool_results):
+                all_tool_responses.append({"name": fc["name"], "response": tool_result})
+                yield {"type": "tool_response", "tool_name": fc["name"], "result": tool_result}
+
+                resp = tool_result if isinstance(tool_result, dict) else {"result": tool_result}
+                fr_parts.append(types.Part.from_function_response(
+                    name=fc["name"],
+                    response=resp,
+                ))
+
+            contents.append(types.Content(role="user", parts=fr_parts))
 
             # Continue loop to get next Gemini response
             continue
@@ -246,13 +281,16 @@ async def run_agent_turn(
         "content": final_text,
     })
 
-    # Also add tool call/response turns to history for context
-    for tc, tr in zip(all_tool_calls, all_tool_responses):
+    # Store tool calls/responses grouped (matching ADK's content structure)
+    # All tool_call turns first, then all tool_response turns
+    # so build_contents can group them into single Content objects
+    for tc in all_tool_calls:
         state.conversation_history.append({
             "role": "tool_call",
             "content": json.dumps(tc),
             "tool_call": tc,
         })
+    for tr in all_tool_responses:
         state.conversation_history.append({
             "role": "tool_response",
             "content": json.dumps(tr["response"]),

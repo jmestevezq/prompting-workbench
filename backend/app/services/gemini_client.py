@@ -1,3 +1,12 @@
+"""Gemini API client wrapper.
+
+Structured to match ADK's internal behavior:
+- Uses async API (client.aio.models.generate_content)
+- Groups multiple function_calls into one Content(role="model")
+- Groups multiple function_responses into one Content(role="user")
+- Disables automatic_function_calling (manual loop control)
+"""
+
 import json
 from typing import Any, Optional
 from google import genai
@@ -28,28 +37,55 @@ def build_contents(
     history: list[dict],
     user_message: Optional[str] = None,
 ) -> list[types.Content]:
-    contents = []
-    for turn in history:
+    """Build Gemini-compatible contents from conversation history.
+
+    Groups adjacent tool_call turns into a single Content(role="model")
+    and adjacent tool_response turns into a single Content(role="user")
+    to match ADK's content structure.
+    """
+    contents: list[types.Content] = []
+
+    i = 0
+    turns = list(history)
+    while i < len(turns):
+        turn = turns[i]
         role = turn["role"]
+
         if role == "user":
             contents.append(types.Content(role="user", parts=[types.Part.from_text(text=turn["content"])]))
+            i += 1
+
         elif role == "agent":
             contents.append(types.Content(role="model", parts=[types.Part.from_text(text=turn["content"])]))
+            i += 1
+
         elif role == "tool_call":
-            # Model's function call
-            fc = turn.get("tool_call", {})
-            part = types.Part.from_function_call(
-                name=fc.get("name", ""),
-                args=fc.get("args", {}),
-            )
-            contents.append(types.Content(role="model", parts=[part]))
+            # Collect all consecutive tool_call turns into one Content(role="model")
+            fc_parts = []
+            while i < len(turns) and turns[i]["role"] == "tool_call":
+                fc = turns[i].get("tool_call", {})
+                fc_parts.append(types.Part.from_function_call(
+                    name=fc.get("name", ""),
+                    args=fc.get("args", {}),
+                ))
+                i += 1
+            contents.append(types.Content(role="model", parts=fc_parts))
+
         elif role == "tool_response":
-            fr = turn.get("tool_response", {})
-            part = types.Part.from_function_response(
-                name=fr.get("name", ""),
-                response=fr.get("response", {}),
-            )
-            contents.append(types.Content(role="user", parts=[part]))
+            # Collect all consecutive tool_response turns into one Content(role="user")
+            fr_parts = []
+            while i < len(turns) and turns[i]["role"] == "tool_response":
+                fr = turns[i].get("tool_response", {})
+                resp = fr.get("response", {})
+                fr_parts.append(types.Part.from_function_response(
+                    name=fr.get("name", ""),
+                    response=resp if isinstance(resp, dict) else {"result": resp},
+                ))
+                i += 1
+            contents.append(types.Content(role="user", parts=fr_parts))
+
+        else:
+            i += 1
 
     if user_message:
         contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_message)]))
@@ -65,7 +101,8 @@ async def generate(
 ) -> dict:
     """Call Gemini and return structured result with raw request/response data.
 
-    Returns dict with keys: response, raw_request, raw_response, token_usage, function_calls
+    Uses the async API (client.aio) to avoid blocking the event loop,
+    matching ADK's internal behavior.
     """
     client = get_client()
 
@@ -83,7 +120,8 @@ async def generate(
         "tools": _serialize_tool(tools) if tools else None,
     }
 
-    response = client.models.generate_content(
+    # Use async API to avoid blocking the event loop (matches ADK)
+    response = await client.aio.models.generate_content(
         model=model,
         contents=contents,
         config=config,
@@ -154,12 +192,10 @@ def _serialize_schema(schema) -> Optional[dict]:
         return None
     if isinstance(schema, dict):
         return schema
-    # Use model_dump if available (Pydantic-based), else to_dict, else manual
     if hasattr(schema, 'model_dump'):
         return schema.model_dump(exclude_none=True)
     if hasattr(schema, 'to_dict'):
         return schema.to_dict()
-    # Manual fallback
     result: dict[str, Any] = {}
     if hasattr(schema, 'type') and schema.type:
         result["type"] = str(schema.type)
@@ -191,10 +227,8 @@ def _serialize_tool(tool: types.Tool) -> list[dict]:
 
 def _serialize_response(response) -> dict:
     try:
-        # Try to get a dict representation
         if hasattr(response, 'to_dict'):
             return response.to_dict()
-        # Fallback: serialize what we can
         result = {}
         if response.candidates:
             result["candidates"] = []

@@ -3,6 +3,89 @@ import type { Agent, Fixture } from '../../api/types'
 import PromptEditor from '../PromptEditor'
 import JsonEditor from '../JsonEditor'
 
+function FixturePreview({
+  fixture,
+  label,
+  onFixtureDataChange,
+}: {
+  fixture: Fixture
+  label: string
+  onFixtureDataChange: (fixtureId: string, data: unknown) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editValue, setEditValue] = useState('')
+
+  const jsonStr = JSON.stringify(fixture.data, null, 2)
+
+  const handleStartEdit = () => {
+    setEditValue(jsonStr)
+    setEditing(true)
+    setExpanded(true)
+  }
+
+  const handleSave = () => {
+    try {
+      const parsed = JSON.parse(editValue)
+      onFixtureDataChange(fixture.id, parsed)
+      setEditing(false)
+    } catch {
+      // invalid JSON, don't save
+    }
+  }
+
+  return (
+    <div className="mt-2 border border-gray-200 rounded">
+      <div
+        className="flex items-center justify-between px-2 py-1.5 bg-gray-50 cursor-pointer"
+        onClick={() => !editing && setExpanded(!expanded)}
+      >
+        <span className="text-xs text-gray-500 font-medium">{label}</span>
+        <div className="flex items-center gap-1">
+          {!editing && (
+            <button
+              onClick={(e) => { e.stopPropagation(); handleStartEdit() }}
+              className="text-[10px] text-blue-600 hover:text-blue-700 px-1"
+            >
+              Edit
+            </button>
+          )}
+          <span className="text-[10px] text-gray-400">{expanded ? '▼' : '▶'}</span>
+        </div>
+      </div>
+      {expanded && (
+        editing ? (
+          <div>
+            <JsonEditor
+              value={editValue}
+              onChange={setEditValue}
+              height="180px"
+            />
+            <div className="flex gap-1 p-1.5 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={handleSave}
+                className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setEditing(false)}
+                className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <pre className="text-xs p-2 max-h-48 overflow-auto">
+            {jsonStr}
+          </pre>
+        )
+      )}
+    </div>
+  )
+}
+
 interface AgentConfigPanelProps {
   agents: Agent[]
   activeAgent: Agent | null
@@ -11,6 +94,7 @@ interface AgentConfigPanelProps {
   onAgentSelect: (agent: Agent) => void
   onAgentUpdate: (updates: Partial<Agent>) => void
   onFixtureSelect: (ids: string[]) => void
+  onFixtureDataChange: (fixtureId: string, data: unknown) => void
   onSwapFixture: () => void
   onSaveVersion: (label: string) => void
   toolOverrides: Record<string, { data: unknown; active: boolean }>
@@ -27,6 +111,7 @@ export default function AgentConfigPanel({
   onAgentSelect,
   onAgentUpdate,
   onFixtureSelect,
+  onFixtureDataChange,
   onSwapFixture,
   onSaveVersion,
   toolOverrides,
@@ -194,12 +279,18 @@ export default function AgentConfigPanel({
               </div>
             </div>
             {selectedProfile && (
-              <details className="mt-2">
-                <summary className="text-xs text-gray-400 cursor-pointer">Preview profile</summary>
-                <pre className="text-xs bg-gray-50 rounded p-2 mt-1 max-h-32 overflow-auto">
-                  {JSON.stringify(selectedProfile.data, null, 2)}
-                </pre>
-              </details>
+              <FixturePreview
+                fixture={selectedProfile}
+                label="User Profile"
+                onFixtureDataChange={onFixtureDataChange}
+              />
+            )}
+            {selectedTx && (
+              <FixturePreview
+                fixture={selectedTx}
+                label={`Transactions (${Array.isArray(selectedTx.data) ? selectedTx.data.length : 0})`}
+                onFixtureDataChange={onFixtureDataChange}
+              />
             )}
             {sessionActive && (
               <button

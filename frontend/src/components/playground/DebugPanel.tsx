@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Turn } from '../../api/types'
 import JsonEditor from '../JsonEditor'
 
@@ -13,6 +13,14 @@ export default function DebugPanel({ selectedTurn, onRerun }: DebugPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>('prompt')
   const [editMode, setEditMode] = useState(false)
   const [editedPrompt, setEditedPrompt] = useState('')
+  const [editedToolResponses, setEditedToolResponses] = useState<Record<string, string>>({})
+
+  // Reset edit state when selected turn changes
+  useEffect(() => {
+    setEditMode(false)
+    setEditedPrompt('')
+    setEditedToolResponses({})
+  }, [selectedTurn?.id])
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'prompt', label: 'Prompt' },
@@ -27,6 +35,20 @@ export default function DebugPanel({ selectedTurn, onRerun }: DebugPanelProps) {
     const overrides: Record<string, unknown> = {}
     if (editedPrompt) {
       overrides.system_prompt = editedPrompt
+    }
+    // Collect edited tool responses
+    const parsedResponses: Record<string, unknown> = {}
+    let hasEditedResponses = false
+    for (const [key, val] of Object.entries(editedToolResponses)) {
+      try {
+        parsedResponses[key] = JSON.parse(val)
+        hasEditedResponses = true
+      } catch {
+        // skip invalid JSON
+      }
+    }
+    if (hasEditedResponses) {
+      overrides.tool_responses = parsedResponses
     }
     onRerun(selectedTurn.id, overrides)
     setEditMode(false)
@@ -69,7 +91,16 @@ export default function DebugPanel({ selectedTurn, onRerun }: DebugPanelProps) {
             onEditPrompt={setEditedPrompt}
           />
         )}
-        {activeTab === 'tools' && <ToolsTab turn={selectedTurn} />}
+        {activeTab === 'tools' && (
+          <ToolsTab
+            turn={selectedTurn}
+            editMode={editMode}
+            editedResponses={editedToolResponses}
+            onEditResponse={(name, val) =>
+              setEditedToolResponses((prev) => ({ ...prev, [name]: val }))
+            }
+          />
+        )}
         {activeTab === 'request' && <RawTab data={selectedTurn.raw_request} />}
         {activeTab === 'response' && <RawTab data={selectedTurn.raw_response} />}
         {activeTab === 'tokens' && <TokensTab turn={selectedTurn} />}
@@ -139,7 +170,17 @@ function PromptTab({
   )
 }
 
-function ToolsTab({ turn }: { turn: Turn }) {
+function ToolsTab({
+  turn,
+  editMode,
+  editedResponses,
+  onEditResponse,
+}: {
+  turn: Turn
+  editMode: boolean
+  editedResponses: Record<string, string>
+  onEditResponse: (name: string, val: string) => void
+}) {
   const calls = (turn.tool_calls ?? []) as Array<{ name: string; args: unknown }>
   const responses = (turn.tool_responses ?? []) as Array<{ name: string; response: unknown }>
 
@@ -149,26 +190,45 @@ function ToolsTab({ turn }: { turn: Turn }) {
 
   return (
     <div className="space-y-3">
-      {calls.map((call, i) => (
-        <div key={i} className="border border-gray-200 rounded overflow-hidden">
-          <div className="bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700">
-            {call.name}
+      {calls.map((call, i) => {
+        const resp = responses[i]
+        const responseJson = resp ? JSON.stringify(resp.response, null, 2) : ''
+        const editKey = call.name
+
+        return (
+          <div key={i} className="border border-gray-200 rounded overflow-hidden">
+            <div className="bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700">
+              {call.name}
+            </div>
+            <pre className="px-3 py-2 text-xs bg-white overflow-auto max-h-32">
+              {JSON.stringify(call.args, null, 2)}
+            </pre>
+            {resp && (
+              <>
+                <div className="bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 border-t border-gray-200 flex items-center justify-between">
+                  <span>Response</span>
+                  {editMode && (
+                    <span className="text-emerald-500 text-[10px] font-normal">editable</span>
+                  )}
+                </div>
+                {editMode ? (
+                  <div className="border-t border-gray-200">
+                    <JsonEditor
+                      value={editedResponses[editKey] ?? responseJson}
+                      onChange={(val) => onEditResponse(editKey, val)}
+                      height="120px"
+                    />
+                  </div>
+                ) : (
+                  <pre className="px-3 py-2 text-xs bg-white overflow-auto max-h-32">
+                    {responseJson}
+                  </pre>
+                )}
+              </>
+            )}
           </div>
-          <pre className="px-3 py-2 text-xs bg-white overflow-auto max-h-32">
-            {JSON.stringify(call.args, null, 2)}
-          </pre>
-          {responses[i] && (
-            <>
-              <div className="bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 border-t border-gray-200">
-                Response
-              </div>
-              <pre className="px-3 py-2 text-xs bg-white overflow-auto max-h-32">
-                {JSON.stringify(responses[i].response, null, 2)}
-              </pre>
-            </>
-          )}
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

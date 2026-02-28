@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { Turn, ToolCall } from '../../api/types'
 
 interface ChatMessage {
@@ -102,6 +103,7 @@ function MessageBubble({
   onClick?: () => void
 }) {
   const { role, content, toolCall, streaming } = message
+  const [showRaw, setShowRaw] = useState(false)
 
   if (role === 'user') {
     return (
@@ -116,9 +118,23 @@ function MessageBubble({
   if (role === 'agent') {
     return (
       <div className="group flex gap-2" onClick={onClick}>
-        <div className="bg-gray-100 rounded-lg px-3 py-2 max-w-[85%] text-sm prose prose-sm prose-gray">
-          <ReactMarkdown>{content}</ReactMarkdown>
+        <div className="bg-gray-100 rounded-lg px-3 py-2 max-w-[85%] text-sm">
+          {showRaw ? (
+            <pre className="whitespace-pre-wrap text-xs font-mono text-gray-700 overflow-auto">{content}</pre>
+          ) : (
+            <div className="prose prose-sm prose-gray max-w-none prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-th:bg-gray-200 prose-table:border-collapse prose-th:border prose-th:border-gray-300 prose-td:border prose-td:border-gray-300">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+            </div>
+          )}
           {streaming && <span className="inline-block w-1.5 h-4 bg-blue-500 animate-pulse ml-0.5" />}
+          {!streaming && content && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowRaw(!showRaw) }}
+              className="mt-1 text-[10px] text-gray-400 hover:text-gray-600"
+            >
+              {showRaw ? 'rendered' : 'raw'}
+            </button>
+          )}
         </div>
         {!streaming && message.turnData && (
           <button

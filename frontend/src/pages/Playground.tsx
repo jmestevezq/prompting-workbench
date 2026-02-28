@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { api } from '../api/client'
 import { ChatWebSocket } from '../api/websocket'
-import type { Agent, Session, Turn, WsServerMessage, ToolCall } from '../api/types'
+import type { Agent, Fixture, Session, Turn, WsServerMessage, ToolCall } from '../api/types'
 import { useAppStore } from '../store'
 import AgentConfigPanel from '../components/playground/AgentConfigPanel'
 import ChatPanel from '../components/playground/ChatPanel'
@@ -29,10 +29,18 @@ export default function Playground() {
   const [wsConnected, setWsConnected] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
 
-  // Load agents and fixtures on mount
+  // Keep a ref to selectedFixtureIds so startSession always reads the latest
+  const fixtureIdsRef = useRef(selectedFixtureIds)
+  fixtureIdsRef.current = selectedFixtureIds
+
+  // Load agents and fixtures on mount, auto-select all fixtures
   useEffect(() => {
     api.listAgents().then(setAgents)
-    api.listFixtures().then(setFixtures)
+    api.listFixtures().then((loaded: Fixture[]) => {
+      setFixtures(loaded)
+      // Auto-select all fixtures so data is available when a session starts
+      setSelectedFixtureIds(loaded.map((f) => f.id))
+    })
   }, [setFixtures])
 
   // Create session and connect WebSocket when agent is selected
@@ -43,9 +51,12 @@ export default function Playground() {
       wsRef.current = null
     }
 
+    // Always read the latest fixture IDs from the ref
+    const currentFixtureIds = fixtureIdsRef.current
+
     const sess = await api.createSession({
       agent_id: agent.id,
-      fixture_ids: selectedFixtureIds,
+      fixture_ids: currentFixtureIds,
     })
     setSession(sess)
     setMessages([])
@@ -64,7 +75,7 @@ export default function Playground() {
     } catch {
       setMessages((prev) => [...prev, { role: 'system', content: 'Failed to connect to WebSocket' }])
     }
-  }, [selectedFixtureIds])
+  }, [])
 
   const handleWsMessage = (msg: WsServerMessage) => {
     switch (msg.type) {
@@ -133,9 +144,29 @@ export default function Playground() {
     wsRef.current.send({ type: 'rerun_turn', turn_id: turnId, overrides })
   }
 
+  const handleFixtureDataChange = async (fixtureId: string, data: unknown) => {
+    await api.updateFixture(fixtureId, { data })
+    // Refresh fixtures in store
+    const updated = await api.listFixtures()
+    setFixtures(updated)
+    // If session is active, re-swap so the runtime picks up the new data
+    if (wsRef.current?.connected) {
+      wsRef.current.send({ type: 'swap_fixture', fixture_ids: fixtureIdsRef.current })
+    }
+  }
+
+  // When user changes fixture selection mid-session, auto-swap
+  const handleFixtureSelect = (ids: string[]) => {
+    setSelectedFixtureIds(ids)
+    // If session is active, immediately sync to backend
+    if (wsRef.current?.connected) {
+      wsRef.current.send({ type: 'swap_fixture', fixture_ids: ids })
+    }
+  }
+
   const handleSwapFixture = () => {
     if (!wsRef.current?.connected) return
-    wsRef.current.send({ type: 'swap_fixture', fixture_ids: selectedFixtureIds })
+    wsRef.current.send({ type: 'swap_fixture', fixture_ids: fixtureIdsRef.current })
   }
 
   const handleSetToolOverride = (overrides: Record<string, { data: unknown; active: boolean }>) => {
@@ -185,7 +216,8 @@ export default function Playground() {
         selectedFixtureIds={selectedFixtureIds}
         onAgentSelect={handleAgentSelect}
         onAgentUpdate={handleAgentUpdate}
-        onFixtureSelect={setSelectedFixtureIds}
+        onFixtureSelect={handleFixtureSelect}
+        onFixtureDataChange={handleFixtureDataChange}
         onSwapFixture={handleSwapFixture}
         onSaveVersion={handleSaveVersion}
         toolOverrides={toolOverrides}
