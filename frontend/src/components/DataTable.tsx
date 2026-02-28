@@ -1,27 +1,30 @@
 import { useState } from 'react'
 
-interface Column<T> {
+interface Column {
   key: string
   header: string
-  render?: (row: T) => React.ReactNode
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  render?: (row: any) => React.ReactNode
   sortable?: boolean
 }
 
-interface DataTableProps<T> {
-  columns: Column<T>[]
-  data: T[]
-  onRowClick?: (row: T) => void
+interface DataTableProps {
+  columns: Column[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onRowClick?: (row: any) => void
   keyField?: string
   emptyMessage?: string
 }
 
-export default function DataTable<T extends Record<string, unknown>>({
+export default function DataTable({
   columns,
   data,
   onRowClick,
   keyField = 'id',
   emptyMessage = 'No data',
-}: DataTableProps<T>) {
+}: DataTableProps) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
