@@ -140,6 +140,22 @@ CREATE TABLE IF NOT EXISTS classification_results (
     raw_response JSON,
     token_usage JSON
 );
+
+CREATE TABLE IF NOT EXISTS agent_versions (
+    id TEXT PRIMARY KEY,
+    agent_id TEXT REFERENCES agents(id),
+    version_label TEXT NOT NULL,
+    source TEXT DEFAULT 'file',
+    raw_template TEXT,
+    variables JSON,
+    variable_definitions JSON,
+    system_prompt TEXT NOT NULL,
+    tool_details JSON,
+    widget_details JSON,
+    tools JSON,
+    is_base INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 
@@ -162,6 +178,16 @@ async def init_db():
         cols = {row["name"] for row in await cursor.fetchall()}
         if "eval_tags" not in cols:
             await db.execute("ALTER TABLE eval_runs ADD COLUMN eval_tags JSON")
+            await db.commit()
+
+        # Migrate: add agent_folder and active_version_id to agents if missing
+        cursor = await db.execute("PRAGMA table_info(agents)")
+        agent_cols = {row["name"] for row in await cursor.fetchall()}
+        if "agent_folder" not in agent_cols:
+            await db.execute("ALTER TABLE agents ADD COLUMN agent_folder TEXT")
+            await db.commit()
+        if "active_version_id" not in agent_cols:
+            await db.execute("ALTER TABLE agents ADD COLUMN active_version_id TEXT REFERENCES agent_versions(id)")
             await db.commit()
 
         # Auto-load seed data if DB is empty

@@ -1,0 +1,136 @@
+name: Sherlock Finance Assistant
+version: "1.0"
+model: gemini-2.5-pro
+description: Financial assistant for the mobile banking app
+
+variables:
+  # --- Static strings ---
+  agentName:
+    type: static
+    value: Sherlock
+
+  getTransactionHistoryAggregationsToolName:
+    type: static
+    value: GET_TRANSACTION_HISTORY_AGGREGATIONS
+
+  codeExecutionToolName:
+    type: static
+    value: CODE_EXECUTION
+
+  # --- Programmatic (compute at render time) ---
+  currentDate:
+    type: programmatic
+    code: |
+      from datetime import date
+      result = date.today().isoformat()
+
+  availableToolsCount:
+    type: programmatic
+    code: |
+      result = len(agent["tools"])
+
+  availableUiWidgetsCount:
+    type: programmatic
+    code: |
+      result = len(agent["widgets"])
+
+  # --- Static lists (iterable in templates) ---
+  availableToolsList:
+    type: static
+    value:
+      - name: GET_GPAY_USER_DATA_FOR_FINANCIAL_ASSISTANT
+        usageGuidelines: >-
+          Use this tool to retrieve the user's demographic information.
+          You **MUST** call this tool at the start of every chat to establish context.
+      - name: GET_TRANSACTION_HISTORY_AGGREGATIONS
+        usageGuidelines: >-
+          Use this tool to fetch and analyze a user's transaction history
+          & spending patterns (e.g. total transactions per month, etc.).
+      - name: GET_TRANSACTION_HISTORY
+        usageGuidelines: >-
+          Use this tool to fetch the raw transaction history of a user.
+          Always prefer GET_TRANSACTION_HISTORY_AGGREGATIONS if aggregations are sufficient.
+      - name: CODE_EXECUTION
+        usageGuidelines: >-
+          Use this to calculate sums, averages or percentages if the
+          other tools do not provide the exact metric needed.
+      - name: Google Search
+        usageGuidelines: >-
+          Use this tool to search for information on the web. If the user asks
+          a question requiring external knowledge, use this tool immediately.
+      - name: GET_CIBIL_DATA
+        usageGuidelines: >-
+          Use this tool to retrieve the user's financial or credit-related
+          information. You **MUST** call this tool at the start of every chat.
+
+  availableUiWidgetsList:
+    type: static
+    value:
+      - name: PIE_CHART
+        description: >-
+          This widget displays a pie chart with labels and percentage values.
+          Use for distribution of spending by category.
+        example: |
+          {
+            "pieChartBlock": {
+              "slices": [
+                {"label": "Groceries", "value": 8987.82},
+                {"label": "Dining Out", "value": 4524.63}
+              ]
+            }
+          }
+      - name: LINE_CHART
+        description: >-
+          This widget displays a line chart with x/y data points.
+          Use for trends over time.
+        example: |
+          {
+            "lineChartBlock": {
+              "dataPoints": [
+                {"x": "Jan", "y": 1200.50},
+                {"x": "Feb", "y": 1500.75}
+              ]
+            }
+          }
+      - name: TABLE
+        description: >-
+          Use this widget to generate tables. MAX 4 columns, 8 rows.
+          Cell data must be concise (1-3 words).
+        example: |
+          {
+            "tableBlock": {
+              "title": "Category Spending",
+              "headers": [{"text": "Category"}, {"text": "Total"}],
+              "rows": [{"cells": [{"textCell": {"text": "Groceries"}}, {"textCell": {"text": "₹8,987"}}]}]
+            }
+          }
+
+  # --- Sub-template references ---
+  toolUsageGuide:
+    type: template
+    path: templates/tool-usage-guide.ftl
+
+  responseStyle:
+    type: template
+    path: templates/response-style.ftl
+
+  widgetGuide:
+    type: template
+    path: templates/widget-guide.ftl
+
+  promptSuggestionsGuide:
+    type: template
+    path: templates/prompt-suggestions.ftl
+
+tools:
+  - GET_GPAY_USER_DATA_FOR_FINANCIAL_ASSISTANT
+  - GET_TRANSACTION_HISTORY_AGGREGATIONS
+  - GET_TRANSACTION_HISTORY
+  - CODE_EXECUTION
+  - Google Search
+  - GET_CIBIL_DATA
+
+widgets:
+  - PIE_CHART
+  - LINE_CHART
+  - TABLE

@@ -13,6 +13,7 @@ class Settings:
     DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "gemini-2.5-pro")
     BATCH_CONCURRENCY: int = int(os.getenv("BATCH_CONCURRENCY", "5"))
     CODE_EXECUTION_TIMEOUT: int = int(os.getenv("CODE_EXECUTION_TIMEOUT", "10"))
+    AGENTS_DIR: str = os.getenv("AGENTS_DIR", str(Path(__file__).resolve().parent.parent / "agents"))
 
 
 settings = Settings()

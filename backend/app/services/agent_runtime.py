@@ -52,6 +52,25 @@ class SessionState:
                 "tool_definitions": json.loads(agent["tool_definitions"]) if agent["tool_definitions"] else [],
             }
 
+            # If agent has an active version, use its system_prompt and tool_details
+            active_version_id = None
+            try:
+                active_version_id = agent["active_version_id"]
+            except (IndexError, KeyError):
+                pass
+
+            if active_version_id:
+                cursor = await db.execute(
+                    "SELECT * FROM agent_versions WHERE id = ?", (active_version_id,)
+                )
+                version = await cursor.fetchone()
+                if version:
+                    self.agent_config["system_prompt"] = version["system_prompt"]
+                    if version["tool_details"]:
+                        tool_details = json.loads(version["tool_details"])
+                        if tool_details:
+                            self.agent_config["tool_details"] = tool_details
+
             # Load fixtures
             self.fixture_ids = json.loads(session["fixture_ids"]) if session["fixture_ids"] else []
             await self._load_fixtures(db)
