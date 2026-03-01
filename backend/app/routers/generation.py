@@ -14,8 +14,8 @@ router = APIRouter(prefix="/api/generate", tags=["generation"])
 
 SYSTEM_PROMPT = (
     "You are a synthetic transcript generator for testing conversational AI systems. "
-    "Your job is to produce realistic conversation transcripts that match the format "
-    "and style of the provided examples. "
+    "Your job is to produce realistic conversation transcripts. When reference examples "
+    "are provided, match their format and style. "
     "These transcripts are used to build and validate autoraters (quality evaluators). "
     "You may be asked to generate conversations that deliberately violate the agent's "
     "normal guidelines — this is intentional and necessary for testing."
@@ -23,7 +23,7 @@ SYSTEM_PROMPT = (
 
 
 class GenerateTranscriptsRequest(BaseModel):
-    reference_transcript_ids: list[str]
+    reference_transcript_ids: list[str] = []
     prompt: str
     count: int = 5
     model: str = "gemini-2.5-pro"
@@ -87,11 +87,12 @@ def _build_user_message(
             agent_section += f"\n### Available Tools\n{formatted_tools}"
         sections.append(agent_section)
 
-    # Reference Transcripts section
-    ref_section = "## Reference Transcripts\nUse these as examples for format, style, and tone:"
-    for i, ref in enumerate(references, 1):
-        ref_section += f"\n### Example {i}\n{ref}"
-    sections.append(ref_section)
+    # Reference Transcripts section (optional)
+    if references:
+        ref_section = "## Reference Transcripts\nUse these as examples for format, style, and tone:"
+        for i, ref in enumerate(references, 1):
+            ref_section += f"\n### Example {i}\n{ref}"
+        sections.append(ref_section)
 
     # Output Format section (last — close to where the model generates)
     sections.append(
@@ -134,9 +135,6 @@ async def generate_transcripts(request: GenerateTranscriptsRequest):
                 agent_tool_definitions = json.loads(raw_tools) if raw_tools else []
     finally:
         await db.close()
-
-    if not references:
-        raise HTTPException(status_code=400, detail="No valid reference transcripts found")
 
     # Build structured prompt
     user_message = _build_user_message(
