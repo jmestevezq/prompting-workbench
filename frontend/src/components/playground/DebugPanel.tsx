@@ -5,11 +5,12 @@ import JsonEditor from '../JsonEditor'
 interface DebugPanelProps {
   selectedTurn: Turn | null
   onRerun: (turnId: string, overrides: Record<string, unknown>) => void
+  isStreaming?: boolean
 }
 
 type Tab = 'prompt' | 'tools' | 'request' | 'response' | 'tokens'
 
-export default function DebugPanel({ selectedTurn, onRerun }: DebugPanelProps) {
+export default function DebugPanel({ selectedTurn, onRerun, isStreaming }: DebugPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>('prompt')
   const [editMode, setEditMode] = useState(false)
   const [editedPrompt, setEditedPrompt] = useState('')
@@ -135,14 +136,22 @@ export default function DebugPanel({ selectedTurn, onRerun }: DebugPanelProps) {
         </button>
         <button
           onClick={handleRerun}
-          disabled={!editMode && !hasAnyEdits}
-          className={`text-xs px-3 py-1.5 rounded transition-colors ${
-            editMode || hasAnyEdits
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+          disabled={isStreaming || (!editMode && !hasAnyEdits)}
+          className={`text-xs px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 ${
+            isStreaming
+              ? 'bg-blue-500 text-white cursor-wait'
+              : editMode || hasAnyEdits
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
           }`}
         >
-          Rerun{hasAnyEdits ? ' with edits' : ''}
+          {isStreaming && (
+            <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          )}
+          {isStreaming ? 'Generating...' : `Rerun${hasAnyEdits ? ' with edits' : ''}`}
         </button>
       </div>
     </div>
