@@ -57,7 +57,26 @@ The Prompt Engineering Workbench is a local-first developer tool for rapidly ite
 
 ---
 
+## File-Based Agent System
+
+Agents can be defined as code in `backend/agents/<folder>/` using an `agent.yaml` + `prompt.ftl` structure:
+
+```
+backend/agents/
+  sherlock-finance/
+    agent.yaml    ← metadata, variables, tool/widget lists, function declarations
+    prompt.ftl    ← FreeMarker template for the system prompt
+```
+
+The `agent_loader` service resolves variables (static values, programmatic Python snippets, sub-templates) and renders the FreeMarker template into a final system prompt. Agents are imported into the DB via `POST /api/agents/import/{folder}`, which creates an `agent_versions` base record that tracks the raw template and resolved variables.
+
+---
+
 ## Modules
+
+### Module 0 — Agent Management
+
+The `/agents` page allows importing agents from `backend/agents/` folders, managing versions (base + UI-created), inspecting raw templates and variable values, and setting the active version.
 
 ### Module 1 — Agent Playground
 
@@ -172,6 +191,7 @@ All runtime configuration comes from environment variables, loaded from `.env`:
 | `DEFAULT_MODEL` | `gemini-2.5-pro` | Default Gemini model |
 | `BATCH_CONCURRENCY` | `5` | Parallel eval tasks |
 | `CODE_EXECUTION_TIMEOUT` | `10` | Subprocess sandbox timeout (seconds) |
+| `AGENTS_DIR` | `./backend/agents` | Directory scanned for file-based agent folders |
 
 Settings can also be updated at runtime via `PUT /api/settings`.
 
