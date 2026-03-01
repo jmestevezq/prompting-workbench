@@ -36,6 +36,7 @@ class AgentSnapshot:
     widgets: list[str]          # Widget name list
     tool_details: list[dict]    # Full tool objects from availableToolsList
     widget_details: list[dict]  # Full widget objects from availableUiWidgetsList
+    tool_definitions: list[dict] = field(default_factory=list)  # Gemini function declarations
 
 
 class AgentLoadError(Exception):
@@ -109,6 +110,7 @@ def load_agent_from_folder(folder_path: str | Path) -> AgentSnapshot:
     tools = config.get("tools", [])
     widgets = config.get("widgets", [])
     variable_definitions = config.get("variables", {})
+    tool_definitions = config.get("tool_definitions", [])
 
     # 2. Resolve variables in dependency order:
     #    static first, then programmatic, then template
@@ -168,6 +170,7 @@ def load_agent_from_folder(folder_path: str | Path) -> AgentSnapshot:
         widgets=widgets,
         tool_details=tool_details,
         widget_details=widget_details,
+        tool_definitions=tool_definitions,
     )
 
 

@@ -5,6 +5,8 @@ export interface Agent {
   system_prompt: string
   model: string
   tool_definitions: ToolDefinition[]
+  agent_folder?: string
+  active_version_id?: string
   created_at: string
   updated_at: string
 }
@@ -37,6 +39,61 @@ export interface PromptVersion {
   version_hash: string
   label?: string
   created_at: string
+}
+
+// --- Agent Versions (file-based template system) ---
+export interface ToolDetail {
+  name: string
+  usageGuidelines: string
+}
+
+export interface WidgetDetail {
+  name: string
+  description: string
+  example?: string
+}
+
+export interface AgentVersion {
+  id: string
+  agent_id: string
+  version_label: string
+  source: string
+  raw_template?: string
+  variables?: Record<string, unknown>
+  variable_definitions?: Record<string, unknown>[]
+  system_prompt: string
+  tool_details?: ToolDetail[]
+  widget_details?: WidgetDetail[]
+  tools?: string[]
+  is_base: boolean
+  created_at: string
+}
+
+export interface AgentVersionCreate {
+  version_label: string
+  system_prompt: string
+  raw_template?: string
+  variables?: Record<string, unknown>
+  variable_definitions?: Record<string, unknown>[]
+  tool_details?: ToolDetail[]
+  widget_details?: WidgetDetail[]
+}
+
+export interface AgentImportResponse {
+  agent_id: string
+  version_id: string
+  name: string
+  version_label: string
+  message: string
+}
+
+export interface AgentTemplateResponse {
+  raw_template?: string
+  variables?: Record<string, unknown>
+  variable_definitions?: Record<string, unknown>[]
+  system_prompt: string
+  tool_details?: ToolDetail[]
+  widget_details?: WidgetDetail[]
 }
 
 // --- Fixtures ---

@@ -2,6 +2,8 @@ import { NavLink, Outlet } from 'react-router-dom'
 
 const navItems = [
   { to: '/playground', label: 'Playground' },
+  { to: '/agents', label: 'Agents' },
+  { to: '/profiles', label: 'Profiles' },
   { to: '/autorater', label: 'Autorater' },
   { to: '/generator', label: 'Generator' },
   { to: '/classification', label: 'Classification' },

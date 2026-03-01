@@ -5,6 +5,7 @@ interface JsonEditorProps {
   onChange?: (value: string) => void
   readOnly?: boolean
   height?: string
+  language?: string
 }
 
 export default function JsonEditor({
@@ -12,11 +13,12 @@ export default function JsonEditor({
   onChange,
   readOnly = false,
   height = '300px',
+  language = 'json',
 }: JsonEditorProps) {
   return (
     <Editor
       height={height}
-      defaultLanguage="json"
+      defaultLanguage={language}
       value={value}
       onChange={(val) => onChange?.(val ?? '')}
       options={{

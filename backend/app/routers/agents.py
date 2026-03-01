@@ -47,8 +47,9 @@ async def import_agent_from_folder(folder_name: str):
             # Update agent record
             await db.execute(
                 """UPDATE agents SET name = ?, system_prompt = ?, model = ?,
-                   updated_at = CURRENT_TIMESTAMP WHERE id = ?""",
-                (snapshot.name, snapshot.system_prompt, snapshot.model, agent_id),
+                   tool_definitions = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?""",
+                (snapshot.name, snapshot.system_prompt, snapshot.model,
+                 json.dumps(snapshot.tool_definitions), agent_id),
             )
 
             # Update existing base version
@@ -115,7 +116,7 @@ async def import_agent_from_folder(folder_name: str):
                    VALUES (?, ?, ?, ?, ?, ?)""",
                 (
                     agent_id, snapshot.name, snapshot.system_prompt,
-                    snapshot.model, json.dumps([]),
+                    snapshot.model, json.dumps(snapshot.tool_definitions),
                     folder_name,
                 ),
             )

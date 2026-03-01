@@ -26,24 +26,23 @@ class TestGetTransactionHistory:
 
     def test_returns_all_transactions_with_no_filters(self):
         result = execute_tool("getTransactionHistory", {}, SAMPLE_FIXTURES)
-        assert "transactions" in result
-        assert len(result["transactions"]) == 5
-        assert result["count"] == 5
+        assert result["status"] == "success"
+        assert len(result["result"]) == 5
 
     def test_filter_by_category(self):
         result = execute_tool("getTransactionHistory", {"category": "groceries"}, SAMPLE_FIXTURES)
-        assert result["count"] == 2
-        for tx in result["transactions"]:
+        assert len(result["result"]) == 2
+        for tx in result["result"]:
             assert tx["category"] == "groceries"
 
     def test_filter_by_category_case_insensitive(self):
         result = execute_tool("getTransactionHistory", {"category": "GROCERIES"}, SAMPLE_FIXTURES)
-        assert result["count"] == 2
+        assert len(result["result"]) == 2
 
     def test_filter_by_merchant_name(self):
         result = execute_tool("getTransactionHistory", {"merchant_name": "uber"}, SAMPLE_FIXTURES)
-        assert result["count"] == 1
-        assert result["transactions"][0]["merchant_name"] == "Uber"
+        assert len(result["result"]) == 1
+        assert result["result"][0]["merchant_name"] == "Uber"
 
     def test_filter_by_date_range(self):
         result = execute_tool("getTransactionHistory", {
@@ -51,21 +50,32 @@ class TestGetTransactionHistory:
             "date_to": "2026-01-15",
         }, SAMPLE_FIXTURES)
         # Whole Foods (Jan 15), Uber (Jan 14), Safeway (Jan 12)
-        assert result["count"] == 3
+        assert len(result["result"]) == 3
+
+    def test_filter_by_production_date_params(self):
+        result = execute_tool("GET_TRANSACTION_HISTORY", {
+            "startDate": "2026-01-12",
+            "endDate": "2026-01-15",
+        }, SAMPLE_FIXTURES)
+        assert len(result["result"]) == 3
 
     def test_filter_by_min_amount(self):
         result = execute_tool("getTransactionHistory", {"min_amount": 50}, SAMPLE_FIXTURES)
-        for tx in result["transactions"]:
+        for tx in result["result"]:
             assert tx["amount"] >= 50
 
     def test_filter_by_max_amount(self):
         result = execute_tool("getTransactionHistory", {"max_amount": 30}, SAMPLE_FIXTURES)
-        for tx in result["transactions"]:
+        for tx in result["result"]:
             assert tx["amount"] <= 30
 
     def test_response_limit(self):
         result = execute_tool("getTransactionHistory", {"responseLimit": 2}, SAMPLE_FIXTURES)
-        assert result["count"] == 2
+        assert len(result["result"]) == 2
+
+    def test_production_limit_param(self):
+        result = execute_tool("GET_TRANSACTION_HISTORY", {"limit": 2}, SAMPLE_FIXTURES)
+        assert len(result["result"]) == 2
 
     def test_group_by_category(self):
         result = execute_tool("getTransactionHistory", {"group_by": "category"}, SAMPLE_FIXTURES)
@@ -85,24 +95,34 @@ class TestGetTransactionHistory:
 
     def test_empty_transactions_fixture(self):
         result = execute_tool("getTransactionHistory", {}, {"transactions": []})
-        assert result["count"] == 0
-        assert result["transactions"] == []
+        assert result["result"] == []
 
     def test_missing_transactions_fixture(self):
         result = execute_tool("getTransactionHistory", {}, {})
-        assert result["count"] == 0
+        assert result["result"] == []
 
     def test_legacy_tool_name_fetch_transactions(self):
         result = execute_tool("fetch_transactions", {}, SAMPLE_FIXTURES)
-        assert "transactions" in result
+        assert "result" in result
+
+    def test_production_tool_name(self):
+        result = execute_tool("GET_TRANSACTION_HISTORY", {}, SAMPLE_FIXTURES)
+        assert result["status"] == "success"
+        assert len(result["result"]) == 5
 
     def test_combined_filters(self):
         result = execute_tool("getTransactionHistory", {
             "category": "groceries",
             "min_amount": 100,
         }, SAMPLE_FIXTURES)
-        assert result["count"] == 1
-        assert result["transactions"][0]["merchant_name"] == "Safeway"
+        assert len(result["result"]) == 1
+        assert result["result"][0]["merchant_name"] == "Safeway"
+
+    def test_merchant_categories_array_filter(self):
+        result = execute_tool("GET_TRANSACTION_HISTORY", {
+            "merchantCategories": ["groceries", "entertainment"],
+        }, SAMPLE_FIXTURES)
+        assert len(result["result"]) == 3  # 2 groceries + 1 entertainment
 
 
 class TestGetTransactionHistoryAggregations:
@@ -146,16 +166,21 @@ class TestGetTransactionHistoryAggregations:
     def test_group_by_with_aggregation(self):
         result = execute_tool("getTransactionHistoryAggregations",
                               {"group_by": "category"}, SAMPLE_FIXTURES)
-        assert "groups" in result
-        for group in result["groups"]:
+        assert result["status"] == "success"
+        for group in result["result"]:
             assert "count" in group
-            assert "total_amount" in group
-            assert "average_amount" in group
+            assert "sumAmount" in group
+            assert "averageAmount" in group
 
-    def test_empty_transactions_returns_zero(self):
+    def test_production_group_by_columns(self):
+        result = execute_tool("GET_TRANSACTION_HISTORY_AGGREGATIONS",
+                              {"groupByColumns": ["category"]}, SAMPLE_FIXTURES)
+        assert result["status"] == "success"
+        assert len(result["result"]) == 3  # groceries, transportation, entertainment
+
+    def test_empty_transactions_returns_empty(self):
         result = execute_tool("getTransactionHistoryAggregations", {}, {"transactions": []})
-        assert result["result"] == 0
-        assert result["count"] == 0
+        assert result["result"] == []
 
     def test_default_aggregation_is_sum(self):
         result_default = execute_tool("getTransactionHistoryAggregations", {}, SAMPLE_FIXTURES)
@@ -163,22 +188,59 @@ class TestGetTransactionHistoryAggregations:
                                   {"aggregation_type": "sum"}, SAMPLE_FIXTURES)
         assert result_default["result"] == result_sum["result"]
 
+    def test_production_tool_name(self):
+        result = execute_tool("GET_TRANSACTION_HISTORY_AGGREGATIONS",
+                              {"aggregation_type": "sum"}, SAMPLE_FIXTURES)
+        expected_sum = sum(t["amount"] for t in SAMPLE_TRANSACTIONS)
+        assert abs(result["result"] - expected_sum) < 0.01
+
 
 class TestGetUserProfile:
     """Tests for the getUserProfile tool."""
 
     def test_returns_user_profile_from_fixture(self):
         result = execute_tool("getUserProfile", {}, SAMPLE_FIXTURES)
-        assert result["name"] == "Jane Doe"
-        assert result["monthly_budget"] == 3000
+        assert result["status"] == "success"
+        assert result["result"]["name"] == "Jane Doe"
+        assert result["result"]["monthly_budget"] == 3000
 
     def test_legacy_tool_name(self):
         result = execute_tool("get_user_profile", {}, SAMPLE_FIXTURES)
-        assert result["name"] == "Jane Doe"
+        assert result["result"]["name"] == "Jane Doe"
+
+    def test_production_tool_name(self):
+        result = execute_tool("GET_GPAY_USER_DATA_FOR_FINANCIAL_ASSISTANT", {}, SAMPLE_FIXTURES)
+        assert result["status"] == "success"
+        assert result["result"]["name"] == "Jane Doe"
 
     def test_missing_fixture_returns_error(self):
         result = execute_tool("getUserProfile", {}, {})
-        assert "error" in result
+        assert result["status"] == "error"
+
+
+class TestGoogleSearch:
+    """Tests for the GOOGLE_SEARCH tool."""
+
+    def test_returns_mock_results(self):
+        result = execute_tool("GOOGLE_SEARCH", {"query": "HDFC Regalia card benefits"}, {})
+        assert result["status"] == "success"
+        assert len(result["result"]) > 0
+        assert "HDFC Regalia" in result["result"][0]["snippet"]
+
+
+class TestGetCibilData:
+    """Tests for the GET_CIBIL_DATA tool."""
+
+    def test_returns_default_mock(self):
+        result = execute_tool("GET_CIBIL_DATA", {}, {})
+        assert result["status"] == "success"
+        assert "creditScore" in result["result"]
+        assert isinstance(result["result"]["creditScore"], int)
+
+    def test_returns_fixture_data(self):
+        fixtures = {"cibil_data": {"creditScore": 810, "activeTradeLines": []}}
+        result = execute_tool("GET_CIBIL_DATA", {}, fixtures)
+        assert result["result"]["creditScore"] == 810
 
 
 class TestUnknownTool:
@@ -228,3 +290,10 @@ class TestCodeExecution:
                               SAMPLE_FIXTURES,
                               context={})
         assert result["returncode"] == 0
+
+    def test_production_tool_name(self):
+        result = execute_tool("CODE_EXECUTION",
+                              {"code": "print(2+2)"},
+                              SAMPLE_FIXTURES)
+        assert result["returncode"] == 0
+        assert "4" in result["stdout"]

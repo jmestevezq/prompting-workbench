@@ -1,23 +1,42 @@
 name: Sherlock Finance Assistant
-version: "1.0"
+version: "2.0"
 model: gemini-2.5-pro
-description: Financial assistant for the mobile banking app
+description: >-
+  Financial assistant for Google Pay India (GPay). Helps users analyze
+  transaction history, spending habits, credit data, and provides
+  personalized financial advice with UI widgets.
 
 variables:
-  # --- Static strings ---
-  agentName:
+  # --- Static tool name references (used in template interpolation) ---
+  googleSearchToolName:
     type: static
-    value: Sherlock
+    value: GOOGLE_SEARCH
 
   getTransactionHistoryAggregationsToolName:
     type: static
     value: GET_TRANSACTION_HISTORY_AGGREGATIONS
 
+  getTransactionHistoryToolName:
+    type: static
+    value: GET_TRANSACTION_HISTORY
+
   codeExecutionToolName:
     type: static
     value: CODE_EXECUTION
 
-  # --- Programmatic (compute at render time) ---
+  getGpayUserDataToolName:
+    type: static
+    value: GET_GPAY_USER_DATA_FOR_FINANCIAL_ASSISTANT
+
+  responseLimitToolParamName:
+    type: static
+    value: limit
+
+  isCodeExecutionAvailable:
+    type: static
+    value: true
+
+  # --- Programmatic variables (computed at render time) ---
   currentDate:
     type: programmatic
     code: |
@@ -34,103 +53,262 @@ variables:
     code: |
       result = len(agent["widgets"])
 
-  # --- Static lists (iterable in templates) ---
+  # --- Static: prompt suggestions block template ---
+  promptSuggestionsBlockTemplate:
+    type: static
+    value: |
+      {
+        "promptSuggestionsBlock": {
+          "suggestions": [
+            "Show me my top 5 spending categories overall in the last 6 months.",
+            "What are the benefits of my SBI Elite credit card?",
+            "Where am I spending most on my credit cards?"
+          ]
+        }
+      }
+
+  # --- Tool list (iterable in templates) ---
   availableToolsList:
     type: static
     value:
       - name: GET_GPAY_USER_DATA_FOR_FINANCIAL_ASSISTANT
         usageGuidelines: >-
           Use this tool to retrieve the user's demographic information.
-          You **MUST** call this tool at the start of every chat to establish context.
+          You **MUST** call this tool at the start of every chat to establish
+          context about the user. Information returned by this tool is limited
+          to data available to GPay and may be incomplete. If the user provides
+          conflicting information compared to the output of this tool, you
+          should prefer user-provided information.
       - name: GET_TRANSACTION_HISTORY_AGGREGATIONS
         usageGuidelines: >-
           Use this tool to fetch and analyze a user's transaction history
-          & spending patterns (e.g. total transactions per month, etc.).
+          & spending patterns (e.g. total transactions per month, count of
+          transactions per date, spending per category, etc.).
       - name: GET_TRANSACTION_HISTORY
         usageGuidelines: >-
-          Use this tool to fetch the raw transaction history of a user.
-          Always prefer GET_TRANSACTION_HISTORY_AGGREGATIONS if aggregations are sufficient.
+          Use this tool to fetch the raw transaction history of a user. This
+          tool is useful for fetching specific transactions or for doing more
+          complex analysis not supported by `GET_TRANSACTION_HISTORY_AGGREGATIONS`.
+          Always prefer to use `GET_TRANSACTION_HISTORY_AGGREGATIONS` if
+          aggregations are sufficient.
       - name: CODE_EXECUTION
         usageGuidelines: >-
-          Use this to calculate sums, averages or percentages if the
-          other tools do not provide the exact metric needed.
-      - name: Google Search
+          Use this to calculate sums, averages or percentages if the other
+          tools do not provide the exact metric needed.
+      - name: GOOGLE_SEARCH
         usageGuidelines: >-
-          Use this tool to search for information on the web. If the user asks
-          a question requiring external knowledge, use this tool immediately.
+          Use this tool to search for information on the web about a specific
+          topic. If the user asks a question that requires external knowledge,
+          up-to-date information or factual verification (e.g. "What are the
+          benefits of HDFC Regalia card?"), use this tool immediately. Do not
+          ask the user for permission to search. Just find the answer and
+          present it.
       - name: GET_CIBIL_DATA
         usageGuidelines: >-
-          Use this tool to retrieve the user's financial or credit-related
-          information. You **MUST** call this tool at the start of every chat.
+          Use this tool to retrieve the user's financial, or credit-related
+          information. This includes the user's credit score and credit report
+          from Credit Information Bureau (India) Limited (CIBIL). You **MUST**
+          call this tool at the start of every chat to establish context about
+          the user.
 
+  # --- Widget list (iterable in templates) ---
   availableUiWidgetsList:
     type: static
     value:
       - name: PIE_CHART
         description: >-
-          This widget displays a pie chart with labels and percentage values.
-          Use for distribution of spending by category.
+          This widget is used to display a pie chart. It takes in a list of
+          labels and their values as percentages. For example, you can use this
+          widget to display the distribution of a user's transaction history
+          by category.
         example: |
           {
             "pieChartBlock": {
               "slices": [
-                {"label": "Groceries", "value": 8987.82},
-                {"label": "Dining Out", "value": 4524.63}
+                {
+                  "label": "Cooking (Groceries)",
+                  "value": 8987.82
+                },
+                {
+                  "label": "Ordering In / Dining Out",
+                  "value": 4524.63
+                }
               ]
             }
           }
       - name: LINE_CHART
         description: >-
-          This widget displays a line chart with x/y data points.
-          Use for trends over time.
+          This widget is used to display a line chart. It takes in a list of
+          x-axis values and y-axis values. For example, you can use this
+          widget to display a user's transaction history over time.
         example: |
           {
             "lineChartBlock": {
               "dataPoints": [
-                {"x": "Jan", "y": 1200.50},
-                {"x": "Feb", "y": 1500.75}
+                {
+                  "x": "Jan",
+                  "y": 1200.50
+                },
+                {
+                  "x": "Feb",
+                  "y": 1500.75
+                }
               ]
             }
           }
       - name: TABLE
         description: >-
-          Use this widget to generate tables. MAX 4 columns, 8 rows.
-          Cell data must be concise (1-3 words).
+          Use this widget to generate tables. Example use cases include
+          comparisons, financial data, or budget reporting.
+          STRICT JSON STRUCTURE: Output must be a single JSON object.
+          The tableBlock object contains two sibling arrays: headers and rows,
+          where each row length is equal to the headers length.
+          MANDATORY CONSTRAINTS: MAX COLUMNS: 4, MAX ROWS: 8 (excluding header),
+          CELL BREVITY: Data must be concise (1-3 words ideally).
+          TITLE BREVITY: The title should be concise (ideally less than 10 words).
         example: |
           {
             "tableBlock": {
               "title": "Category Spending",
-              "headers": [{"text": "Category"}, {"text": "Total"}],
-              "rows": [{"cells": [{"textCell": {"text": "Groceries"}}, {"textCell": {"text": "₹8,987"}}]}]
+              "headers": [
+                { "text": "Category" },
+                { "text": "Total Spend" },
+                { "text": "Transaction Count" }
+              ],
+              "rows": [
+                {
+                  "cells": [
+                    { "textCell": { "text": "Cooking (Groceries)" } },
+                    { "textCell": { "text": "₹8,987.82" } },
+                    { "textCell": { "text": "10 times" } }
+                  ]
+                },
+                {
+                  "cells": [
+                    { "textCell": { "text": "Ordering In / Dining Out" } },
+                    { "textCell": { "text": "₹4,524.63" } },
+                    { "textCell": { "text": "5 times" } }
+                  ]
+                }
+              ]
             }
           }
-
-  # --- Sub-template references ---
-  toolUsageGuide:
-    type: template
-    path: templates/tool-usage-guide.ftl
-
-  responseStyle:
-    type: template
-    path: templates/response-style.ftl
-
-  widgetGuide:
-    type: template
-    path: templates/widget-guide.ftl
-
-  promptSuggestionsGuide:
-    type: template
-    path: templates/prompt-suggestions.ftl
 
 tools:
   - GET_GPAY_USER_DATA_FOR_FINANCIAL_ASSISTANT
   - GET_TRANSACTION_HISTORY_AGGREGATIONS
   - GET_TRANSACTION_HISTORY
   - CODE_EXECUTION
-  - Google Search
+  - GOOGLE_SEARCH
   - GET_CIBIL_DATA
 
 widgets:
   - PIE_CHART
   - LINE_CHART
   - TABLE
+
+# Gemini function declarations (sent to the model as tool schemas)
+tool_definitions:
+  - name: GET_GPAY_USER_DATA_FOR_FINANCIAL_ASSISTANT
+    description: >-
+      Retrieve the user's demographic information including age, location,
+      linked bank accounts, and active credit cards from GPay.
+    parameters:
+      type: OBJECT
+      properties: {}
+
+  - name: GET_TRANSACTION_HISTORY_AGGREGATIONS
+    description: >-
+      Fetch and analyze a user's transaction history and spending patterns
+      with aggregated metrics (sum, count, average, min, max). Prefer this
+      over GET_TRANSACTION_HISTORY for any aggregation queries.
+    parameters:
+      type: OBJECT
+      properties:
+        startDate:
+          type: STRING
+          description: Start date in YYYY-MM-DD format
+        endDate:
+          type: STRING
+          description: End date in YYYY-MM-DD format
+        transactionDirection:
+          type: STRING
+          description: "Transaction direction: DEBIT or CREDIT"
+        merchantCategories:
+          type: ARRAY
+          items:
+            type: STRING
+          description: Filter by merchant categories
+        groupByColumns:
+          type: ARRAY
+          items:
+            type: STRING
+          description: "Columns to group results by (e.g. category, counterpartyName, date)"
+
+  - name: GET_TRANSACTION_HISTORY
+    description: >-
+      Fetch raw transaction history for a user with optional filters.
+      Use for specific transaction lookups or complex analysis not
+      supported by aggregations.
+    parameters:
+      type: OBJECT
+      properties:
+        startDate:
+          type: STRING
+          description: Start date in YYYY-MM-DD format
+        endDate:
+          type: STRING
+          description: End date in YYYY-MM-DD format
+        paymentMethod:
+          type: STRING
+          description: Filter by payment method (e.g. "Federal Bank RuPay credit card")
+        merchantCategories:
+          type: ARRAY
+          items:
+            type: STRING
+          description: Filter by merchant categories
+        transactionDirection:
+          type: STRING
+          description: "Transaction direction: DEBIT or CREDIT"
+        counterpartyName:
+          type: STRING
+          description: Filter by person or merchant name
+        limit:
+          type: INTEGER
+          description: Maximum number of transactions to return
+
+  - name: CODE_EXECUTION
+    description: >-
+      Execute Python code for arithmetic calculations. The environment is
+      stateless and cannot access tools or previous tool outputs. You must
+      hardcode all data as variables in the script.
+    parameters:
+      type: OBJECT
+      properties:
+        code:
+          type: STRING
+          description: Python code to execute
+      required:
+        - code
+
+  - name: GOOGLE_SEARCH
+    description: >-
+      Search the web for information on a specific topic. Use for
+      up-to-date knowledge, factual verification, seasonal sales,
+      or local bank offers.
+    parameters:
+      type: OBJECT
+      properties:
+        query:
+          type: STRING
+          description: Search query
+      required:
+        - query
+
+  - name: GET_CIBIL_DATA
+    description: >-
+      Retrieve the user's credit score and credit report from CIBIL,
+      including active trade lines (loans and debt portfolio).
+    parameters:
+      type: OBJECT
+      properties: {}

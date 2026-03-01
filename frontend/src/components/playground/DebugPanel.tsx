@@ -22,9 +22,13 @@ export default function DebugPanel({ selectedTurn, onRerun }: DebugPanelProps) {
     setEditedToolResponses({})
   }, [selectedTurn?.id])
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'prompt', label: 'Prompt' },
-    { key: 'tools', label: 'Tool Calls' },
+  const hasPromptEdit = editedPrompt !== ''
+  const hasToolEdits = Object.keys(editedToolResponses).length > 0
+  const hasAnyEdits = hasPromptEdit || hasToolEdits
+
+  const tabs: { key: Tab; label: string; hasEdit?: boolean }[] = [
+    { key: 'prompt', label: 'Prompt', hasEdit: hasPromptEdit },
+    { key: 'tools', label: 'Tool Calls', hasEdit: hasToolEdits },
     { key: 'request', label: 'Raw Req' },
     { key: 'response', label: 'Raw Resp' },
     { key: 'tokens', label: 'Tokens' },
@@ -52,6 +56,14 @@ export default function DebugPanel({ selectedTurn, onRerun }: DebugPanelProps) {
     }
     onRerun(selectedTurn.id, overrides)
     setEditMode(false)
+    setEditedPrompt('')
+    setEditedToolResponses({})
+  }
+
+  const handleCancelEdit = () => {
+    setEditMode(false)
+    setEditedPrompt('')
+    setEditedToolResponses({})
   }
 
   if (!selectedTurn) {
@@ -70,13 +82,16 @@ export default function DebugPanel({ selectedTurn, onRerun }: DebugPanelProps) {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+            className={`relative px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
               activeTab === tab.key
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
             {tab.label}
+            {editMode && tab.hasEdit && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-amber-400 rounded-full" />
+            )}
           </button>
         ))}
       </div>
@@ -106,22 +121,29 @@ export default function DebugPanel({ selectedTurn, onRerun }: DebugPanelProps) {
         {activeTab === 'tokens' && <TokensTab turn={selectedTurn} />}
       </div>
 
-      {/* Rerun controls */}
-      <div className="p-3 border-t border-gray-200 shrink-0 flex gap-2">
+      {/* Controls */}
+      <div className="p-3 border-t border-gray-200 shrink-0 flex items-center gap-2">
         <button
-          onClick={() => setEditMode(!editMode)}
-          className="text-xs px-3 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+          onClick={() => editMode ? handleCancelEdit() : setEditMode(true)}
+          className={`text-xs px-3 py-1.5 rounded border transition-colors ${
+            editMode
+              ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+          }`}
         >
-          {editMode ? 'Cancel Edit' : 'Edit & Rerun'}
+          {editMode ? 'Cancel' : 'Edit'}
         </button>
-        {editMode && (
-          <button
-            onClick={handleRerun}
-            className="text-xs px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700"
-          >
-            Rerun
-          </button>
-        )}
+        <button
+          onClick={handleRerun}
+          disabled={!editMode && !hasAnyEdits}
+          className={`text-xs px-3 py-1.5 rounded transition-colors ${
+            editMode || hasAnyEdits
+              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+          }`}
+        >
+          Rerun{hasAnyEdits ? ' with edits' : ''}
+        </button>
       </div>
     </div>
   )
@@ -155,6 +177,7 @@ function PromptTab({
           value={editedPrompt || systemPrompt}
           onChange={onEditPrompt}
           height="250px"
+          language="text"
         />
       </div>
     )

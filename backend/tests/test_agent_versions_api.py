@@ -12,7 +12,7 @@ class TestImportAgent:
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "Sherlock Finance Assistant"
-        assert "Base (1.0)" in data["version_label"]
+        assert "Base (2.0)" in data["version_label"]
         assert data["message"] == "Agent imported successfully"
         assert data["agent_id"]
         assert data["version_id"]
@@ -39,9 +39,9 @@ class TestImportAgent:
         v = versions[0]
         assert v["is_base"] is True
         assert v["source"] == "file"
-        assert "Sherlock" in v["system_prompt"]
+        assert "financial assistant" in v["system_prompt"].lower()
         assert v["raw_template"] is not None
-        assert "${model.agentName}" in v["raw_template"]
+        assert "${model.currentDate}" in v["raw_template"]
 
     def test_reimport_updates_base_version(self, test_client):
         # First import
@@ -72,7 +72,7 @@ class TestImportAgent:
         # Check that template was rendered (no FreeMarker directives remain)
         assert "${" not in prompt
         assert "<#" not in prompt
-        assert "Sherlock" in prompt
+        assert "financial assistant" in prompt.lower()
 
 
 class TestAgentVersionCRUD:
@@ -160,10 +160,10 @@ class TestAgentTemplate:
         assert tmpl_resp.status_code == 200
         tmpl = tmpl_resp.json()
         assert tmpl["raw_template"] is not None
-        assert "${model.agentName}" in tmpl["raw_template"]
+        assert "${model.currentDate}" in tmpl["raw_template"]
         assert tmpl["variables"] is not None
         assert tmpl["system_prompt"] is not None
-        assert "Sherlock" in tmpl["system_prompt"]
+        assert "financial assistant" in tmpl["system_prompt"].lower()
 
     def test_get_template_without_version(self, test_client):
         # Create a regular agent (no import)

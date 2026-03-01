@@ -10,6 +10,7 @@ import type {
   ClassificationRun, ClassificationResult,
   SettingsData, SettingsUpdate,
   PromptVersion,
+  AgentVersion, AgentVersionCreate, AgentImportResponse, AgentTemplateResponse,
 } from './types'
 
 const BASE = '/api'
@@ -38,6 +39,16 @@ export const api = {
   createVersion: (agentId: string, label?: string) => request<PromptVersion>(`/agents/${agentId}/versions`, { method: 'POST', body: JSON.stringify({ label }) }),
   updateVersionLabel: (agentId: string, versionId: string, label: string) =>
     request<PromptVersion>(`/agents/${agentId}/versions/${versionId}/label`, { method: 'POST', body: JSON.stringify({ label }) }),
+
+  // Agent Versions (file-based template system)
+  listAgentVersions: (agentId: string) => request<AgentVersion[]>(`/agents/${agentId}/agent-versions`),
+  createAgentVersion: (agentId: string, data: AgentVersionCreate) =>
+    request<AgentVersion>(`/agents/${agentId}/agent-versions`, { method: 'POST', body: JSON.stringify(data) }),
+  setActiveVersion: (agentId: string, versionId: string) =>
+    request<void>(`/agents/${agentId}/active-version?version_id=${versionId}`, { method: 'PUT' }),
+  getAgentTemplate: (agentId: string) => request<AgentTemplateResponse>(`/agents/${agentId}/template`),
+  importAgent: (folderName: string) => request<AgentImportResponse>(`/agents/import/${folderName}`, { method: 'POST' }),
+  listAgentFolders: () => request<{folders: string[]}>('/agents/folders/available').then(r => r.folders),
 
   // Fixtures
   listFixtures: () => request<Fixture[]>('/fixtures'),

@@ -10,14 +10,25 @@ from typing import Any
 from app.services.code_sandbox import execute_agent_code
 
 
+# Tool names that use the code execution handler (need extra context arg)
+_CODE_TOOLS = {"execute_code", "codeExecution", "CODE_EXECUTION"}
+
+
 def execute_tool(tool_name: str, args: dict, fixtures: dict, context: dict | None = None) -> Any:
     handlers = {
-        # New tool names (matching production patterns)
+        # Production tool names (UPPER_SNAKE_CASE)
+        "GET_GPAY_USER_DATA_FOR_FINANCIAL_ASSISTANT": _get_user_profile,
+        "GET_TRANSACTION_HISTORY_AGGREGATIONS": _fetch_transactions_aggregations,
+        "GET_TRANSACTION_HISTORY": _fetch_transactions,
+        "CODE_EXECUTION": _execute_code,
+        "GOOGLE_SEARCH": _google_search,
+        "GET_CIBIL_DATA": _get_cibil_data,
+        # camelCase tool names (backward compat)
         "getTransactionHistory": _fetch_transactions,
         "getTransactionHistoryAggregations": _fetch_transactions_aggregations,
         "getUserProfile": _get_user_profile,
         "codeExecution": _execute_code,
-        # Legacy tool names (backward compat)
+        # Legacy snake_case names
         "fetch_transactions": _fetch_transactions,
         "get_user_profile": _get_user_profile,
         "execute_code": _execute_code,
@@ -26,31 +37,69 @@ def execute_tool(tool_name: str, args: dict, fixtures: dict, context: dict | Non
     if not handler:
         return {"error": f"Unknown tool: {tool_name}"}
 
-    if tool_name in ("execute_code", "codeExecution"):
+    if tool_name in _CODE_TOOLS:
         return handler(args, fixtures, context or {})
     return handler(args, fixtures)
 
 
 def _apply_filters(transactions: list, args: dict) -> list:
-    """Apply common filters to a transaction list."""
+    """Apply common filters to a transaction list.
+
+    Supports both legacy parameter names (category, date_from) and
+    production parameter names (merchantCategories, startDate).
+    """
     filtered = list(transactions)
 
-    if args.get("category"):
-        filtered = [t for t in filtered if t.get("category", "").lower() == args["category"].lower()]
-    if args.get("merchant_name"):
-        filtered = [t for t in filtered if t.get("merchant_name", "").lower() == args["merchant_name"].lower()]
-    if args.get("date_from"):
+    # Category filter — legacy single value or production array
+    category = args.get("category")
+    merchant_categories = args.get("merchantCategories", [])
+    if category:
+        filtered = [t for t in filtered if t.get("category", "").lower() == category.lower()]
+    elif merchant_categories:
+        cats_lower = [c.lower() for c in merchant_categories]
+        filtered = [t for t in filtered if t.get("category", "").lower() in cats_lower]
+
+    # Merchant/counterparty name filter
+    merchant_name = args.get("merchant_name") or args.get("counterpartyName")
+    if merchant_name:
+        name_lower = merchant_name.lower()
+        filtered = [
+            t for t in filtered
+            if name_lower in (t.get("merchant_name", "") or t.get("counterpartyName", "")).lower()
+        ]
+
+    # Date range — legacy or production names
+    date_from_str = args.get("date_from") or args.get("startDate")
+    date_to_str = args.get("date_to") or args.get("endDate")
+    if date_from_str:
         try:
-            date_from = datetime.strptime(args["date_from"], "%Y-%m-%d")
+            date_from = datetime.strptime(date_from_str, "%Y-%m-%d")
             filtered = [t for t in filtered if _parse_date(t.get("date")) and _parse_date(t["date"]) >= date_from]
         except ValueError:
             pass
-    if args.get("date_to"):
+    if date_to_str:
         try:
-            date_to = datetime.strptime(args["date_to"], "%Y-%m-%d")
+            date_to = datetime.strptime(date_to_str, "%Y-%m-%d")
             filtered = [t for t in filtered if _parse_date(t.get("date")) and _parse_date(t["date"]) <= date_to]
         except ValueError:
             pass
+
+    # Transaction direction filter (DEBIT / CREDIT)
+    direction = args.get("transactionDirection")
+    if direction:
+        dir_lower = direction.lower()
+        filtered = [t for t in filtered if (t.get("transactionDirection", "") or "").lower() == dir_lower]
+
+    # Payment method filter
+    payment_method = args.get("paymentMethod")
+    if payment_method:
+        pm_lower = payment_method.lower()
+        filtered = [
+            t for t in filtered
+            if pm_lower in str(t.get("paymentMethod", "")).lower()
+        ]
+
+    # Amount range
     if args.get("min_amount") is not None:
         filtered = [t for t in filtered if (t.get("amount") or 0) >= float(args["min_amount"])]
     if args.get("max_amount") is not None:
@@ -62,7 +111,7 @@ def _apply_filters(transactions: list, args: dict) -> list:
 def _fetch_transactions(args: dict, fixtures: dict) -> Any:
     transactions = fixtures.get("transactions", [])
     if not transactions:
-        return {"transactions": [], "count": 0}
+        return {"status": "success", "result": []}
 
     filtered = _apply_filters(transactions, args)
 
@@ -93,69 +142,117 @@ def _fetch_transactions(args: dict, fixtures: dict) -> Any:
     except TypeError:
         pass
 
-    # Apply responseLimit
-    response_limit = args.get("responseLimit")
+    # Apply limit (production: "limit", legacy: "responseLimit")
+    response_limit = args.get("limit") or args.get("responseLimit")
     if response_limit is not None:
         response_limit = int(response_limit)
         filtered = filtered[:response_limit]
 
-    return {"transactions": filtered, "count": len(filtered)}
+    return {"status": "success", "result": filtered}
 
 
 def _fetch_transactions_aggregations(args: dict, fixtures: dict) -> Any:
-    """Handle getTransactionHistoryAggregations - returns sums, counts, averages."""
+    """Handle transaction aggregations — returns sums, counts, averages grouped by column."""
     transactions = fixtures.get("transactions", [])
     if not transactions:
-        return {"result": 0, "count": 0}
+        return {"status": "success", "result": []}
 
     filtered = _apply_filters(transactions, args)
-    amounts = [t.get("amount", 0) for t in filtered]
 
-    agg_type = args.get("aggregation_type", "sum")
+    # Determine grouping — production uses groupByColumns array, legacy uses group_by string
+    group_by_cols = args.get("groupByColumns", [])
+    legacy_group = args.get("group_by")
+    if legacy_group and not group_by_cols:
+        group_by_cols = [legacy_group]
 
-    if args.get("group_by"):
-        group_key = args["group_by"]
+    if group_by_cols:
+        # Group by the first column (primary grouping)
+        group_key = group_by_cols[0]
         groups: dict[str, list] = {}
         for t in filtered:
             key = str(t.get(group_key, "unknown"))
             groups.setdefault(key, []).append(t)
 
-        grouped_result = []
+        result = []
         for key, items in groups.items():
             item_amounts = [t.get("amount", 0) for t in items]
-            grouped_result.append({
+            entry = {
                 group_key: key,
                 "count": len(items),
-                "total_amount": round(sum(item_amounts), 2),
-                "average_amount": round(sum(item_amounts) / len(item_amounts), 2) if item_amounts else 0,
-                "min_amount": round(min(item_amounts), 2) if item_amounts else 0,
-                "max_amount": round(max(item_amounts), 2) if item_amounts else 0,
-            })
-        return {"groups": grouped_result, "total_count": len(filtered)}
+                "sumAmount": str(round(sum(item_amounts), 2)),
+                "averageAmount": str(round(sum(item_amounts) / len(item_amounts), 2)) if item_amounts else "0",
+                "minAmount": str(round(min(item_amounts), 2)) if item_amounts else "0",
+                "maxAmount": str(round(max(item_amounts), 2)) if item_amounts else "0",
+            }
+            # Include transactionDirection if filtered
+            if args.get("transactionDirection"):
+                entry["transactionDirection"] = args["transactionDirection"]
+            result.append(entry)
+        return {"status": "success", "result": result}
 
+    # No grouping — aggregate all
+    amounts = [t.get("amount", 0) for t in filtered]
     if not amounts:
-        return {"result": 0, "count": 0}
+        return {"status": "success", "result": []}
 
-    result = 0
+    agg_type = args.get("aggregation_type", "sum")
+    value = 0
     if agg_type == "sum":
-        result = round(sum(amounts), 2)
+        value = round(sum(amounts), 2)
     elif agg_type == "count":
-        result = len(amounts)
+        value = len(amounts)
     elif agg_type == "average":
-        result = round(sum(amounts) / len(amounts), 2)
+        value = round(sum(amounts) / len(amounts), 2)
     elif agg_type == "min":
-        result = round(min(amounts), 2)
+        value = round(min(amounts), 2)
     elif agg_type == "max":
-        result = round(max(amounts), 2)
+        value = round(max(amounts), 2)
 
-    return {"result": result, "count": len(amounts)}
+    return {"status": "success", "result": value, "count": len(amounts)}
 
 
 def _get_user_profile(args: dict, fixtures: dict) -> Any:
     profile = fixtures.get("user_profile")
     if not profile:
-        return {"error": "No user profile fixture loaded"}
-    return profile
+        return {"status": "error", "error": "No user profile fixture loaded"}
+    return {"status": "success", "result": profile}
+
+
+def _get_cibil_data(args: dict, fixtures: dict) -> Any:
+    """Return CIBIL credit data from fixtures or a default mock."""
+    cibil = fixtures.get("cibil_data")
+    if cibil:
+        return {"status": "success", "result": cibil}
+    # Default mock when no fixture is loaded
+    return {
+        "status": "success",
+        "result": {
+            "creditScore": 750,
+            "activeTradeLines": [
+                {
+                    "institution": "HDFC Bank",
+                    "accountType": "Credit Card",
+                    "outstandingBalance": 25000,
+                    "estimatedInterestRate": 3.5,
+                },
+            ],
+        },
+    }
+
+
+def _google_search(args: dict, fixtures: dict) -> Any:
+    """Mock web search — returns a placeholder result."""
+    query = args.get("query", "")
+    return {
+        "status": "success",
+        "result": [
+            {
+                "title": f"Search results for: {query}",
+                "snippet": f"Mock search result for '{query}'. In production, this would return real web search results.",
+                "uri": "https://example.com/mock-search",
+            },
+        ],
+    }
 
 
 def _execute_code(args: dict, fixtures: dict, context: dict) -> Any:

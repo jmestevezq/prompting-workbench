@@ -18,6 +18,49 @@ from app.services import gemini_client
 from app.services.mock_tools import execute_tool
 
 
+def _expand_db_turn(row) -> list[dict]:
+    """Expand a single DB turn row into separate history entries.
+
+    A DB agent row stores tool_calls and tool_responses as JSON columns alongside
+    the text content. build_contents expects separate entries with distinct roles
+    (tool_call, tool_response, agent), so we expand them here.
+    Order: tool_calls → tool_responses → agent text (matching Gemini's expected sequence).
+    """
+    entries = []
+
+    if row["tool_calls"]:
+        tc_list = json.loads(row["tool_calls"])
+        if tc_list:
+            if not isinstance(tc_list, list):
+                tc_list = [tc_list]
+            for tc in tc_list:
+                entries.append({
+                    "role": "tool_call",
+                    "content": json.dumps(tc),
+                    "tool_call": tc,
+                })
+
+    if row["tool_responses"]:
+        tr_list = json.loads(row["tool_responses"])
+        if tr_list:
+            if not isinstance(tr_list, list):
+                tr_list = [tr_list]
+            for tr in tr_list:
+                entries.append({
+                    "role": "tool_response",
+                    "content": json.dumps(tr.get("response", tr)),
+                    "tool_response": tr,
+                })
+
+    entries.append({
+        "id": row["id"],
+        "role": row["role"],
+        "content": row["content"],
+    })
+
+    return entries
+
+
 class SessionState:
     """In-memory state for an active chat session."""
 
@@ -83,20 +126,14 @@ class SessionState:
             rows = await cursor.fetchall()
             self.conversation_history = []
             for row in rows:
-                turn = {
-                    "id": row["id"],
-                    "role": row["role"],
-                    "content": row["content"],
-                }
-                if row["tool_calls"]:
-                    tc = json.loads(row["tool_calls"])
-                    if tc:
-                        turn["tool_call"] = tc[0] if isinstance(tc, list) else tc
-                if row["tool_responses"]:
-                    tr = json.loads(row["tool_responses"])
-                    if tr:
-                        turn["tool_response"] = tr[0] if isinstance(tr, list) else tr
-                self.conversation_history.append(turn)
+                if row["role"] == "agent" and (row["tool_calls"] or row["tool_responses"]):
+                    self.conversation_history.extend(_expand_db_turn(row))
+                else:
+                    self.conversation_history.append({
+                        "id": row["id"],
+                        "role": row["role"],
+                        "content": row["content"],
+                    })
         finally:
             await db.close()
 
@@ -294,15 +331,8 @@ async def run_agent_turn(
     finally:
         await db.close()
 
-    state.conversation_history.append({
-        "id": agent_turn_id,
-        "role": "agent",
-        "content": final_text,
-    })
-
-    # Store tool calls/responses grouped (matching ADK's content structure)
-    # All tool_call turns first, then all tool_response turns
-    # so build_contents can group them into single Content objects
+    # Store tool calls/responses BEFORE agent text (matching Gemini's expected order:
+    # model(function_call) → user(function_response) → model(text))
     for tc in all_tool_calls:
         state.conversation_history.append({
             "role": "tool_call",
@@ -315,6 +345,12 @@ async def run_agent_turn(
             "content": json.dumps(tr["response"]),
             "tool_response": tr,
         })
+
+    state.conversation_history.append({
+        "id": agent_turn_id,
+        "role": "agent",
+        "content": final_text,
+    })
 
     # Yield complete turn
     yield {
@@ -367,19 +403,14 @@ async def rerun_turn(
     finally:
         await db.close()
 
-    # Rebuild history from prior turns
+    # Rebuild history from prior turns, expanding agent rows with tool data
+    # into separate tool_call/tool_response/agent entries that build_contents expects
     history = []
     for row in prior_turns:
-        turn = {"role": row["role"], "content": row["content"]}
-        if row["tool_calls"]:
-            tc = json.loads(row["tool_calls"])
-            if tc:
-                turn["tool_call"] = tc[0] if isinstance(tc, list) else tc
-        if row["tool_responses"]:
-            tr = json.loads(row["tool_responses"])
-            if tr:
-                turn["tool_response"] = tr[0] if isinstance(tr, list) else tr
-        history.append(turn)
+        if row["role"] == "agent" and (row["tool_calls"] or row["tool_responses"]):
+            history.extend(_expand_db_turn(row))
+        else:
+            history.append({"role": row["role"], "content": row["content"]})
 
     # Rebuild state's conversation history
     state.conversation_history = history

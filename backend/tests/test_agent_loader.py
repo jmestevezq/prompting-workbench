@@ -15,9 +15,9 @@ class TestLoadAgentFromFolder:
         snapshot = load_agent_from_folder(SHERLOCK_DIR)
 
         assert snapshot.name == "Sherlock Finance Assistant"
-        assert snapshot.version == "1.0"
+        assert snapshot.version == "2.0"
         assert snapshot.model == "gemini-2.5-pro"
-        assert snapshot.description == "Financial assistant for the mobile banking app"
+        assert "financial assistant" in snapshot.description.lower()
 
         # Tools
         assert len(snapshot.tools) == 6
@@ -37,9 +37,9 @@ class TestLoadAgentFromFolder:
         assert len(snapshot.widget_details) == 3
         assert snapshot.widget_details[0]["name"] == "PIE_CHART"
 
-    def test_rendered_prompt_contains_agent_name(self):
+    def test_rendered_prompt_contains_agent_description(self):
         snapshot = load_agent_from_folder(SHERLOCK_DIR)
-        assert "Sherlock" in snapshot.system_prompt
+        assert "financial assistant" in snapshot.system_prompt.lower()
 
     def test_rendered_prompt_contains_current_date(self):
         """Programmatic variable currentDate should be resolved."""
@@ -48,9 +48,9 @@ class TestLoadAgentFromFolder:
         import re
         assert re.search(r'\d{4}-\d{2}-\d{2}', snapshot.system_prompt)
 
-    def test_rendered_prompt_contains_tool_count(self):
+    def test_rendered_prompt_contains_tool_section(self):
         snapshot = load_agent_from_folder(SHERLOCK_DIR)
-        assert "6 tools" in snapshot.system_prompt
+        assert "Tool Usage Guidelines" in snapshot.system_prompt
 
     def test_rendered_prompt_contains_tool_names(self):
         """Sub-template tool-usage-guide.ftl should render tool list."""
@@ -65,9 +65,9 @@ class TestLoadAgentFromFolder:
         assert "LINE_CHART" in snapshot.system_prompt
         assert "TABLE" in snapshot.system_prompt
 
-    def test_rendered_prompt_contains_response_style(self):
+    def test_rendered_prompt_contains_response_guidelines(self):
         snapshot = load_agent_from_folder(SHERLOCK_DIR)
-        assert "Formatting" in snapshot.system_prompt
+        assert "Response" in snapshot.system_prompt
 
     def test_rendered_prompt_contains_prompt_suggestions(self):
         snapshot = load_agent_from_folder(SHERLOCK_DIR)
@@ -75,21 +75,21 @@ class TestLoadAgentFromFolder:
 
     def test_raw_template_preserved(self):
         snapshot = load_agent_from_folder(SHERLOCK_DIR)
-        assert "${model.agentName}" in snapshot.raw_template
+        assert "${model.currentDate}" in snapshot.raw_template
         assert "<#if" in snapshot.raw_template
 
     def test_variable_definitions_preserved(self):
         snapshot = load_agent_from_folder(SHERLOCK_DIR)
-        assert "agentName" in snapshot.variable_definitions
-        assert snapshot.variable_definitions["agentName"]["type"] == "static"
+        assert "googleSearchToolName" in snapshot.variable_definitions
+        assert snapshot.variable_definitions["googleSearchToolName"]["type"] == "static"
         assert "currentDate" in snapshot.variable_definitions
         assert snapshot.variable_definitions["currentDate"]["type"] == "programmatic"
-        assert "toolUsageGuide" in snapshot.variable_definitions
-        assert snapshot.variable_definitions["toolUsageGuide"]["type"] == "template"
+        assert "availableToolsList" in snapshot.variable_definitions
+        assert snapshot.variable_definitions["availableToolsList"]["type"] == "static"
 
     def test_resolved_variables_contain_static(self):
         snapshot = load_agent_from_folder(SHERLOCK_DIR)
-        assert snapshot.variables["agentName"] == "Sherlock"
+        assert snapshot.variables["googleSearchToolName"] == "GOOGLE_SEARCH"
 
     def test_resolved_variables_contain_programmatic(self):
         snapshot = load_agent_from_folder(SHERLOCK_DIR)
@@ -97,11 +97,21 @@ class TestLoadAgentFromFolder:
         assert isinstance(snapshot.variables["currentDate"], str)
         assert len(snapshot.variables["currentDate"]) == 10  # YYYY-MM-DD
 
-    def test_resolved_variables_contain_template(self):
+    def test_resolved_variables_contain_tool_list(self):
         snapshot = load_agent_from_folder(SHERLOCK_DIR)
-        # Template variables are rendered strings
-        assert isinstance(snapshot.variables["toolUsageGuide"], str)
-        assert "GET_GPAY_USER_DATA_FOR_FINANCIAL_ASSISTANT" in snapshot.variables["toolUsageGuide"]
+        # availableToolsList should be a list of tool detail dicts
+        tools_list = snapshot.variables["availableToolsList"]
+        assert isinstance(tools_list, list)
+        assert len(tools_list) == 6
+        assert tools_list[0]["name"] == "GET_GPAY_USER_DATA_FOR_FINANCIAL_ASSISTANT"
+
+    def test_tool_definitions_loaded(self):
+        snapshot = load_agent_from_folder(SHERLOCK_DIR)
+        assert len(snapshot.tool_definitions) == 6
+        names = [td["name"] for td in snapshot.tool_definitions]
+        assert "GOOGLE_SEARCH" in names
+        assert "GET_CIBIL_DATA" in names
+        assert "CODE_EXECUTION" in names
 
 
 class TestLoadErrors:
