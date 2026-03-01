@@ -1,6 +1,27 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { Turn } from '../../api/types'
 import JsonEditor from '../JsonEditor'
+
+function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }, [text])
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="text-[10px] px-1.5 py-0.5 rounded border border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition-colors shrink-0"
+      title={label}
+    >
+      {copied ? 'Copied!' : label}
+    </button>
+  )
+}
 
 interface DebugPanelProps {
   selectedTurn: Turn | null
@@ -194,7 +215,10 @@ function PromptTab({
 
   return (
     <div>
-      <label className="text-xs font-medium text-gray-500 mb-1 block">System Prompt</label>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-xs font-medium text-gray-500">System Prompt</label>
+        {systemPrompt && <CopyButton text={systemPrompt} />}
+      </div>
       <pre className="text-xs bg-gray-50 rounded p-3 whitespace-pre-wrap max-h-96 overflow-auto">
         {systemPrompt || 'N/A'}
       </pre>
@@ -229,8 +253,9 @@ function ToolsTab({
 
         return (
           <div key={i} className="border border-gray-200 rounded overflow-hidden">
-            <div className="bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700">
-              {call.name}
+            <div className="bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 flex items-center justify-between">
+              <span>{call.name}</span>
+              <CopyButton text={JSON.stringify(call.args, null, 2)} label="Copy args" />
             </div>
             <pre className="px-3 py-2 text-xs bg-white overflow-auto max-h-32">
               {JSON.stringify(call.args, null, 2)}
@@ -239,9 +264,12 @@ function ToolsTab({
               <>
                 <div className="bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 border-t border-gray-200 flex items-center justify-between">
                   <span>Response</span>
-                  {editMode && (
-                    <span className="text-emerald-500 text-[10px] font-normal">editable</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {editMode && (
+                      <span className="text-emerald-500 text-[10px] font-normal">editable</span>
+                    )}
+                    <CopyButton text={responseJson} label="Copy" />
+                  </div>
                 </div>
                 {editMode ? (
                   <div className="border-t border-gray-200">
@@ -266,10 +294,18 @@ function ToolsTab({
 }
 
 function RawTab({ data }: { data: unknown }) {
+  const formatted = data ? JSON.stringify(data, null, 2) : ''
   return (
-    <pre className="text-xs bg-gray-50 rounded p-3 whitespace-pre-wrap overflow-auto max-h-[calc(100vh-250px)]">
-      {data ? JSON.stringify(data, null, 2) : 'N/A'}
-    </pre>
+    <div>
+      {formatted && (
+        <div className="flex justify-end mb-1">
+          <CopyButton text={formatted} />
+        </div>
+      )}
+      <pre className="text-xs bg-gray-50 rounded p-3 whitespace-pre-wrap overflow-auto max-h-[calc(100vh-250px)]">
+        {formatted || 'N/A'}
+      </pre>
+    </div>
   )
 }
 
