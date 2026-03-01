@@ -46,9 +46,11 @@ Called once at server start. Runs schema DDL, applies migrations, seeds initial 
 
 ## Routers
 
-### `app/routers/agents.py` — Agent CRUD
+### `app/routers/agents.py` — Agent CRUD + File Import
 
 Prefix: `/api/agents`
+
+**Core CRUD:**
 
 | Method | Path | Description |
 |---|---|---|
@@ -56,12 +58,35 @@ Prefix: `/api/agents`
 | `POST` | `/` | Create a new agent |
 | `GET` | `/{agent_id}` | Get a single agent |
 | `PUT` | `/{agent_id}` | Partial update (name, system_prompt, model, tool_definitions) |
-| `DELETE` | `/{agent_id}` | Delete an agent |
-| `GET` | `/{agent_id}/versions` | List prompt versions for an agent |
-| `POST` | `/{agent_id}/versions` | Snapshot current agent prompt as a new version |
-| `POST` | `/{agent_id}/versions/{version_id}/label` | Add or update a human label on a version |
+| `DELETE` | `/{agent_id}` | Delete agent + all child versions, sessions, turns |
 
-**Prompt versioning:** When creating a version, a SHA-256 hash of `system_prompt + tool_definitions` is computed and stored as `version_hash`. This allows detecting duplicate snapshots. The caller provides an optional `label` (e.g. `"v3-math-fix"`).
+**File-based agent import:**
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/folders/available` | List agent folder names under `AGENTS_DIR` |
+| `POST` | `/import/{folder_name}` | Import (or re-import) an agent from a folder |
+
+On import, the agent's `agent.yaml` + `prompt.ftl` are loaded via `agent_loader.py`, rendered, and stored in the DB. A base `agent_versions` record is created (or updated on re-import). The `agent_folder` column links the DB record back to the source directory.
+
+**Prompt versioning (legacy):**
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/{agent_id}/versions` | List prompt versions (legacy hash-based snapshots) |
+| `POST` | `/{agent_id}/versions` | Snapshot current agent prompt as a new version |
+| `POST` | `/{agent_id}/versions/{version_id}/label` | Update a human label on a version |
+
+**Agent versions (new, full snapshots):**
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/{agent_id}/agent-versions` | List all versions (base first, then UI versions by date) |
+| `POST` | `/{agent_id}/agent-versions` | Create a version from UI edits |
+| `PUT` | `/{agent_id}/active-version?version_id=` | Switch the active version |
+| `GET` | `/{agent_id}/template` | Get raw template + resolved variables for the active version |
+
+Each `agent_versions` record stores the full `raw_template`, `variables`, `variable_definitions`, `system_prompt`, `tool_details`, `widget_details`, and `tools` list. The `source` field is `"file"` for imported versions or `"ui"` for manually created ones. `is_base=1` marks the canonical version imported from disk.
 
 ### `app/routers/fixtures.py` — Fixture CRUD
 
@@ -144,6 +169,53 @@ On `WebSocketDisconnect`, the session is removed from memory.
 ---
 
 ## Services
+
+### `app/services/agent_loader.py` — File-based Agent Loading
+
+Loads a complete agent definition from a folder on disk. Used by the import endpoint.
+
+**`AgentSnapshot` dataclass**
+
+Fully resolved agent definition with all fields: `name`, `version`, `model`, `description`, `system_prompt` (rendered), `raw_template` (original .ftl), `variables` (resolved values), `variable_definitions` (original YAML defs), `tools`, `widgets`, `tool_details`, `widget_details`, `tool_definitions`.
+
+**`load_agent_from_folder(folder_path)`**
+
+Resolution pipeline:
+1. Parse `agent.yaml` — extracts name, version, model, description, tool list, widget list, variable definitions, Gemini function declarations
+2. Resolve variables in three passes:
+   - Pass 1: `static` variables → direct value from YAML
+   - Pass 2: `programmatic` variables → `exec()` a Python snippet that sets `result`; `agent` dict is available in scope
+   - Pass 3: `template` variables → render a sub-`.ftl` file with resolved vars so far
+3. Build template model dict
+4. Load and render `prompt.ftl` via `FreemarkerRenderer`
+5. Return `AgentSnapshot`
+
+**`list_agent_folders(agents_dir)`**
+
+Returns a sorted list of folder names that contain an `agent.yaml` file.
+
+---
+
+### `app/services/freemarker.py` — FreeMarker Template Renderer
+
+A pure-Python recursive descent parser implementing a subset of the FreeMarker template language.
+
+**Supported syntax:**
+- Interpolation: `${expr}`, `${a.b.c}`, `${a.b?size}`, `${a.b?string}`
+- List directive: `<#list expr as var>...</#list>` with nested lists
+- Conditionals: `<#if expr>...<#elseif expr>...<#else>...</#if>`
+- Loop built-ins on the loop variable: `?index`, `?counter`, `?has_next`, `?is_first`, `?is_last`
+- Array indexing: `items[0]`
+- Comparison operators: `==`, `!=`, `>`, `<`, `>=`, `<=`, `gt`, `lt`, `gte`, `lte`
+- Logical operators: `&&`, `||`, `!`
+- Comments: `<#-- ... -->`
+- String, numeric, and boolean literals
+
+**`FreemarkerRenderer.render(template, model)`**
+
+Tokenizes the template with `_tokenize()` then renders with `_Parser`. Raises `FreemarkerError` on unresolved variables or malformed directives.
+
+---
 
 ### `app/services/gemini_client.py` — Gemini API Wrapper
 
@@ -300,11 +372,59 @@ Per-category metrics use a count-based approximation (min of predicted/true coun
 
 ---
 
+## `backend/agents/` — Agent Folder Structure
+
+Agent definitions live under `backend/agents/<folder-name>/`. Each folder contains:
+
+- `agent.yaml` — Agent metadata, variable definitions, tool/widget lists, Gemini function declarations
+- `prompt.ftl` — Main system prompt template (FreeMarker syntax)
+- Optional sub-templates referenced by `template` type variables
+
+**`agent.yaml` structure:**
+
+```yaml
+name: My Agent
+version: "1.0"
+model: gemini-2.5-pro
+description: "..."
+
+variables:
+  myStaticVar:
+    type: static
+    value: "hello"
+  myProgrammaticVar:
+    type: programmatic
+    code: |
+      result = some_computation()
+  myTemplateVar:
+    type: template
+    path: sub-template.ftl
+
+tools:
+  - TOOL_NAME_1
+
+widgets:
+  - WIDGET_NAME_1
+
+tool_definitions:
+  - name: TOOL_NAME_1
+    description: "..."
+    parameters:
+      type: OBJECT
+      properties:
+        myParam:
+          type: STRING
+```
+
+The bundled `sherlock-finance` agent demonstrates all variable types, multi-tool declarations, and UI widget definitions.
+
+---
+
 ## Schemas (`app/schemas/`)
 
 Pydantic v2 models for request validation and response serialization:
 
-- `agent.py` — `AgentCreate`, `AgentUpdate`, `AgentResponse`, `PromptVersionCreate`, `PromptVersionResponse`, `PromptVersionLabelUpdate`
+- `agent.py` — `AgentCreate`, `AgentUpdate`, `AgentResponse`, `PromptVersionCreate`, `PromptVersionResponse`, `PromptVersionLabelUpdate`, `AgentVersionCreate`, `AgentVersionResponse`, `AgentImportResponse`, `AgentTemplateResponse`
 - `fixture.py` — `FixtureCreate`, `FixtureUpdate`, `FixtureResponse`
 - `session.py` — `SessionCreate`, `SessionResponse`, `TurnResponse`
 - `transcript.py` — `TranscriptCreate`, `TranscriptUpdate`, `TranscriptResponse`, `TranscriptImport`

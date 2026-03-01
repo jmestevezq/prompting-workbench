@@ -29,11 +29,13 @@ Defines the router tree with React Router v7. All pages are children of the `<La
 
 ```
 / → redirect to /playground
-/playground   → Playground
-/autorater    → Autorater
-/generator    → Generator
+/playground     → Playground
+/agents         → Agents (agent management + file import)
+/profiles       → UserProfiles (fixture management)
+/autorater      → Autorater
+/generator      → Generator
 /classification → Classification
-/settings     → Settings
+/settings       → Settings
 ```
 
 ---
@@ -57,15 +59,32 @@ All types mirror the backend Pydantic schemas. Organized into groups:
 
 A thin wrapper around the browser's native `fetch`. All requests include `Content-Type: application/json`. Non-OK responses throw an `Error` with the status code and body. 204 responses return `undefined`.
 
-The exported `api` object provides ~40 named methods grouped by domain:
+The exported `api` object provides named methods grouped by domain:
 
 ```typescript
+// Agents
 api.listAgents()
 api.createAgent(data)
+api.getAgent(id)
 api.updateAgent(id, data)
 api.deleteAgent(id)
+// File-based import
+api.listAgentFolders()
+api.importAgent(folderName)
+// Prompt versions (legacy)
 api.listVersions(agentId)
 api.createVersion(agentId, label?)
+// Agent versions (new)
+api.listAgentVersions(agentId)
+api.createAgentVersion(agentId, data)
+api.setActiveVersion(agentId, versionId)
+api.getAgentTemplate(agentId)
+// Fixtures
+api.listFixtures()
+api.createFixture(data)
+api.updateFixture(id, data)
+api.deleteFixture(id)
+// Eval / classification / generation
 api.startEvalRun(autorater_id, transcript_ids, eval_tags?)
 api.generateTranscripts(data)
 // ...etc
@@ -246,6 +265,42 @@ Three-tab page (same structure as Autorater):
 - Run history with `exact_match_rate`, per-category precision/recall/F1
 - Per-entry results with match details (per-transaction category comparison)
 
+### `src/pages/Agents.tsx` — Agent Management
+
+Three-tab page for managing file-based and manually created agents:
+
+**Tab 1: Overview**
+- Lists all agents with name, model, folder, and source badge (file/ui)
+- Detail pane: shows agent metadata, "Re-import from Files" button (for file-based agents), Delete button
+- Import section: dropdown of available agent folders → "Import" triggers `POST /api/agents/import/{folder}`
+
+**Tab 2: Template & Variables**
+- Loads the active version's raw `.ftl` template and variable definitions via `GET /api/agents/{id}/template`
+- Displays raw template in read-only Monaco editor
+- Variable table: name, type (static/programmatic/template), resolved value preview
+- Rendered system prompt in read-only Monaco editor
+- Tool and widget detail cards
+
+**Tab 3: Versions**
+- Lists all `agent_versions` records with label, source, created date, active status
+- Set any version as active via `PUT /api/agents/{id}/active-version`
+- Re-import from files (updates base version)
+- Create new UI version: label + system prompt form → `POST /api/agents/{id}/agent-versions`
+- Version detail pane: system prompt, tool details, widget details
+
+### `src/pages/UserProfiles.tsx` — User Profiles
+
+Two-panel page for managing user profile and transaction fixtures:
+
+- Left panel: list of all `user_profile` type fixtures
+- Right panel: edit/create form with:
+  - Name field
+  - **Simulation date** picker (`currentDate` field injected into profile JSON)
+  - Profile data JSON editor (Monaco)
+  - Transactions JSON editor (linked `transactions` fixture)
+- Create: saves both the user profile fixture and updates/creates a linked transactions fixture
+- Delete: removes the profile fixture
+
 ### `src/pages/Settings.tsx` — Settings
 
 - Shows current settings from `api.getSettings()`
@@ -274,13 +329,30 @@ Left column of the Playground. Contains:
 Center column. Contains:
 - Scrolling message list
   - User messages (right-aligned)
-  - Agent messages (left-aligned, markdown-rendered)
+  - Agent messages (left-aligned, markdown-rendered + widget blocks)
   - Tool call cards (expandable, shows tool name + args)
   - Tool response cards (expandable, shows result)
   - System messages (error/info banners)
-- "Streaming..." indicator while agent is responding
+- "Generating..." indicator while agent is responding
 - Message input bar (text input + send button, disabled while streaming)
 - Click on agent message → calls `onSelectTurn` to load debug data
+
+**UI Widget Rendering**
+
+Agent message content is parsed for embedded widget JSON blocks. The `tryParseRenderableBlocks()` function handles:
+- Pure JSON messages (entire content is a JSON object with a widget key)
+- Mixed content: fenced ` ```json ``` ` blocks or bare JSON objects interspersed with markdown text
+
+Supported widget block types and their JSON keys:
+
+| Widget | JSON Key | Render Component |
+|---|---|---|
+| Prompt suggestion chips | `promptSuggestionsBlock.suggestions` | `PromptSuggestionChips` — clickable chip buttons that send the suggestion as a message |
+| Pie chart | `pieChartBlock.slices` | `PieChartWidget` — SVG pie chart with legend |
+| Line chart | `lineChartBlock.dataPoints` | `LineChartWidget` — SVG line chart with area fill and axis ticks |
+| Table | `tableBlock.{title,headers,rows}` | `TableWidget` — HTML table with optional title |
+
+Non-widget text portions surrounding widget JSON are rendered as markdown alongside the widgets.
 
 ### `src/components/playground/DebugPanel.tsx`
 

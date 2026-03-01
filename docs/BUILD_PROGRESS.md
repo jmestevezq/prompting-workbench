@@ -21,7 +21,7 @@
 - POST /api/eval/run, POST /api/classification/run, POST /api/generate/transcripts
 
 ## Phase 4: Frontend Shell - COMPLETE
-- Tailwind CSS, Vite proxy, React Router with 5 routes
+- Tailwind CSS, Vite proxy, React Router with 7 routes
 - Layout with top nav, shared components (DataTable, JsonEditor, PromptEditor, MetricsCard, StatusBadge, DiffViewer)
 - API client, TypeScript types, WebSocket client, Zustand store
 - Settings page functional
@@ -39,6 +39,30 @@
 
 ## Phase 7: Integration & Polish - COMPLETE
 - Seed data: sample agent, 2 fixtures, 3 transcripts (auto-loaded if DB empty)
-- Makefile: `make dev`, `make backend`, `make frontend`, `make install`
 - Vite proxy configured for /api and /ws
 - Full end-to-end verified
+
+## Phase 8: File-Based Agents + UI Polish - COMPLETE
+- freemarker.py: FreeMarker template subset renderer (interpolation, list, if/elseif/else, built-ins)
+- agent_loader.py: Loads agent.yaml + prompt.ftl from disk; resolves static/programmatic/template variables
+- sherlock-finance agent: Full agent definition in backend/agents/sherlock-finance/
+- agents router: New endpoints for folder listing, import, agent-versions CRUD, active version, template
+- agent_versions table: Full snapshot versioning with source (file/ui), is_base flag
+- Agents page (/agents): Agent management, file import, template inspector, version management
+- UserProfiles page (/profiles): Fixture management with simulation date picker
+- ChatPanel widget rendering: PieChart, LineChart, Table, PromptSuggestionChips
+- Comprehensive test coverage: all backend services and API endpoints
+- Architecture docs: BACKEND_COMPONENTS.md, FRONTEND_COMPONENTS.md, SYSTEM_OVERVIEW.md
+
+## Current Status
+All 8 phases complete. The system is fully functional.
+
+## Test Coverage
+- Backend: Full coverage of all routers and services via pytest
+- Frontend: Components (DataTable, DiffViewer, MetricsCard, StatusBadge, TranscriptPicker) and API layer tested
+
+## Known Gaps / Future Work
+See docs/EVAL_FUTURE_WORK.md for planned evaluation improvements.
+
+Frontend page-level tests (Agents, UserProfiles, Playground pages) are not yet written — these
+require more complex mocking of the API layer and WebSocket.
