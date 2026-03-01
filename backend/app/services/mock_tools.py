@@ -88,7 +88,7 @@ def _apply_filters(transactions: list, args: dict) -> list:
     direction = args.get("transactionDirection")
     if direction:
         dir_lower = direction.lower()
-        filtered = [t for t in filtered if (t.get("transactionDirection", "") or "").lower() == dir_lower]
+        filtered = [t for t in filtered if (t.get("transactionDirection") or t.get("type") or "").lower() == dir_lower]
 
     # Payment method filter
     payment_method = args.get("paymentMethod")
