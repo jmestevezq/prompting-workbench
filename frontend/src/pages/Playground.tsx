@@ -236,6 +236,7 @@ export default function Playground() {
       <DebugPanel
         selectedTurn={selectedTurn}
         onRerun={handleRerun}
+        isStreaming={isStreaming}
       />
     </div>
   )
