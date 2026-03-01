@@ -4,6 +4,8 @@ import type { Fixture } from '../api/types'
 import DataTable from '../components/DataTable'
 import JsonEditor from '../components/JsonEditor'
 
+const todayStr = () => new Date().toISOString().split('T')[0]
+
 export default function UserProfiles() {
   const [profiles, setProfiles] = useState<Fixture[]>([])
   const [transactions, setTransactions] = useState<Fixture[]>([])
@@ -11,6 +13,7 @@ export default function UserProfiles() {
   const [selectedTx, setSelectedTx] = useState<Fixture | null>(null)
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
+  const [simulationDate, setSimulationDate] = useState(todayStr())
   const [jsonData, setJsonData] = useState('{}')
   const [txJsonData, setTxJsonData] = useState('[]')
   const [saving, setSaving] = useState(false)
@@ -30,8 +33,17 @@ export default function UserProfiles() {
     setSelected(p)
     setCreating(false)
     setName(p.name)
-    setJsonData(JSON.stringify(p.data, null, 2))
     setError('')
+
+    // Extract currentDate from profile data, default to today
+    const data = p.data as Record<string, unknown>
+    const dateVal = (data?.currentDate as string) || todayStr()
+    setSimulationDate(dateVal)
+
+    // Remove currentDate from JSON display — it's managed by the date picker
+    const { currentDate: _, ...rest } = data || {}
+    setJsonData(JSON.stringify(rest, null, 2))
+
     // Auto-select the first transactions fixture (1:1 for now)
     const tx = transactions.length > 0 ? transactions[0] : null
     setSelectedTx(tx)
@@ -42,6 +54,7 @@ export default function UserProfiles() {
     setSelected(null)
     setCreating(true)
     setName('')
+    setSimulationDate(todayStr())
     setJsonData('{}')
     setError('')
     const tx = transactions.length > 0 ? transactions[0] : null
@@ -57,6 +70,10 @@ export default function UserProfiles() {
     } catch {
       setError('Invalid JSON in profile data')
       return
+    }
+    // Inject simulation date into profile data
+    if (typeof parsed === 'object' && parsed !== null) {
+      (parsed as Record<string, unknown>).currentDate = simulationDate
     }
     let parsedTx: unknown
     try {
@@ -140,15 +157,26 @@ export default function UserProfiles() {
           <div className="text-gray-400 text-sm">Select a profile or create a new one</div>
         ) : (
           <div className="max-w-2xl space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="Profile name"
-              />
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Profile name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Simulation Date</label>
+                <input
+                  type="date"
+                  value={simulationDate}
+                  onChange={(e) => setSimulationDate(e.target.value)}
+                  className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
             </div>
 
             <div>

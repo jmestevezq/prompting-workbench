@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Agent, Fixture } from '../../api/types'
 import PromptEditor from '../PromptEditor'
 import JsonEditor from '../JsonEditor'
+
+const todayStr = () => new Date().toISOString().split('T')[0]
 
 function FixturePreview({
   fixture,
@@ -131,6 +133,22 @@ export default function AgentConfigPanel({
 
   const selectedProfile = fixtures.find((f) => selectedFixtureIds.includes(f.id) && f.type === 'user_profile')
   const selectedTx = fixtures.find((f) => selectedFixtureIds.includes(f.id) && f.type === 'transactions')
+
+  // Simulation date — synced from selected profile's currentDate field
+  const [simulationDate, setSimulationDate] = useState(todayStr())
+  useEffect(() => {
+    if (selectedProfile) {
+      const data = selectedProfile.data as Record<string, unknown>
+      setSimulationDate((data?.currentDate as string) || todayStr())
+    }
+  }, [selectedProfile?.id, (selectedProfile?.data as Record<string, unknown>)?.currentDate])
+
+  const handleSimulationDateChange = (newDate: string) => {
+    setSimulationDate(newDate)
+    if (!selectedProfile) return
+    const data = { ...(selectedProfile.data as Record<string, unknown>), currentDate: newDate }
+    onFixtureDataChange(selectedProfile.id, data)
+  }
 
   const handleFixtureChange = (type: string, fixtureId: string) => {
     const otherIds = selectedFixtureIds.filter((id) => {
@@ -276,6 +294,16 @@ export default function AgentConfigPanel({
                     <option key={f.id} value={f.id}>{f.name}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400">Simulation Date</label>
+                <input
+                  type="date"
+                  value={simulationDate}
+                  onChange={(e) => handleSimulationDateChange(e.target.value)}
+                  disabled={!selectedProfile}
+                  className="w-full border border-gray-300 rounded px-2 py-1 text-xs disabled:opacity-50 disabled:bg-gray-50"
+                />
               </div>
             </div>
             {selectedProfile && (

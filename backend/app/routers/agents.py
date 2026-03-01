@@ -244,6 +244,17 @@ async def delete_agent(agent_id: str):
         cursor = await db.execute("SELECT id FROM agents WHERE id = ?", (agent_id,))
         if not await cursor.fetchone():
             raise HTTPException(status_code=404, detail="Agent not found")
+        # Clear self-referencing FK before deleting child rows
+        await db.execute("UPDATE agents SET active_version_id = NULL WHERE id = ?", (agent_id,))
+        # Delete child rows that reference this agent
+        await db.execute("DELETE FROM agent_versions WHERE agent_id = ?", (agent_id,))
+        await db.execute("DELETE FROM prompt_versions WHERE agent_id = ?", (agent_id,))
+        # Delete sessions and their turns
+        cursor = await db.execute("SELECT id FROM sessions WHERE agent_id = ?", (agent_id,))
+        session_rows = await cursor.fetchall()
+        for s in session_rows:
+            await db.execute("DELETE FROM turns WHERE session_id = ?", (s["id"],))
+        await db.execute("DELETE FROM sessions WHERE agent_id = ?", (agent_id,))
         await db.execute("DELETE FROM agents WHERE id = ?", (agent_id,))
         await db.commit()
     finally:

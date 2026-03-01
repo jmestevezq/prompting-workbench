@@ -9,6 +9,7 @@ Matches ADK's internal behavior:
 
 import asyncio
 import json
+from datetime import date
 from uuid import uuid4
 from typing import Any, AsyncGenerator
 from google.genai import types
@@ -71,6 +72,7 @@ class SessionState:
         self.fixture_ids: list[str] = []
         self.tool_overrides: dict = {}  # {"tool_name": {"data": ..., "active": True}}
         self.conversation_history: list[dict] = []  # List of turn dicts
+        self.simulation_date: str | None = None  # Override from user_profile fixture
 
     async def load(self):
         """Load session, agent, and fixture data from DB."""
@@ -148,6 +150,11 @@ class SessionState:
                 data = json.loads(fixture["data"]) if fixture["data"] else None
                 self.fixtures[fixture_type] = data
 
+        # Extract simulation date from user_profile fixture if present
+        user_profile = self.fixtures.get("user_profile", {})
+        if isinstance(user_profile, dict) and "currentDate" in user_profile:
+            self.simulation_date = user_profile["currentDate"]
+
     async def swap_fixtures(self, new_fixture_ids: list[str]):
         """Swap active fixtures mid-conversation."""
         self.fixture_ids = new_fixture_ids
@@ -199,6 +206,10 @@ async def run_agent_turn(
     system_prompt = system_prompt_override or state.agent_config["system_prompt"]
     model = state.agent_config["model"]
     tool_defs = state.agent_config["tool_definitions"]
+
+    # Inject current date (fixture override or actual date)
+    current_date = state.simulation_date or date.today().isoformat()
+    system_prompt += f"\n\nToday's date is {current_date}."
 
     # Build conversation history
     history = modified_history if modified_history is not None else list(state.conversation_history)

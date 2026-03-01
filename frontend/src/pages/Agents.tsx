@@ -109,9 +109,13 @@ function OverviewTab({
 
   const handleDelete = async () => {
     if (!selected) return
-    await api.deleteAgent(selected.id)
-    onSelect(null as unknown as Agent)
-    await onRefresh()
+    try {
+      await api.deleteAgent(selected.id)
+      onSelect(null as unknown as Agent)
+      await onRefresh()
+    } catch (e) {
+      setImportMsg(e instanceof Error ? e.message : 'Delete failed')
+    }
   }
 
   const columns = [

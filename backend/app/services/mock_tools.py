@@ -2,6 +2,9 @@
 
 Each handler takes (args, fixtures) and returns a dict that becomes the tool response.
 Fixtures is a dict like {"user_profile": {...}, "transactions": [...]}
+
+Field name aliases handle both legacy (category, merchant_name) and production
+(merchantCategory, counterpartyName) field names in transaction data.
 """
 
 from datetime import datetime
@@ -12,6 +15,27 @@ from app.services.code_sandbox import execute_agent_code
 
 # Tool names that use the code execution handler (need extra context arg)
 _CODE_TOOLS = {"execute_code", "codeExecution", "CODE_EXECUTION"}
+
+# Field name aliases — maps legacy ↔ production field names in transaction data
+_FIELD_ALIASES = {
+    "category": "merchantCategory",
+    "merchantCategory": "category",
+    "merchant_name": "counterpartyName",
+    "counterpartyName": "merchant_name",
+    "type": "transactionDirection",
+    "transactionDirection": "type",
+}
+
+
+def _tx_field(t: dict, field: str):
+    """Get a transaction field value, checking aliases for fixture compatibility."""
+    val = t.get(field)
+    if val is not None:
+        return val
+    alias = _FIELD_ALIASES.get(field)
+    if alias:
+        return t.get(alias)
+    return None
 
 
 def execute_tool(tool_name: str, args: dict, fixtures: dict, context: dict | None = None) -> Any:
@@ -47,6 +71,7 @@ def _apply_filters(transactions: list, args: dict) -> list:
 
     Supports both legacy parameter names (category, date_from) and
     production parameter names (merchantCategories, startDate).
+    Uses _tx_field() to handle field name aliases in transaction data.
     """
     filtered = list(transactions)
 
@@ -54,10 +79,11 @@ def _apply_filters(transactions: list, args: dict) -> list:
     category = args.get("category")
     merchant_categories = args.get("merchantCategories", [])
     if category:
-        filtered = [t for t in filtered if t.get("category", "").lower() == category.lower()]
+        cat_lower = category.lower()
+        filtered = [t for t in filtered if (_tx_field(t, "category") or "").lower() == cat_lower]
     elif merchant_categories:
         cats_lower = [c.lower() for c in merchant_categories]
-        filtered = [t for t in filtered if t.get("category", "").lower() in cats_lower]
+        filtered = [t for t in filtered if (_tx_field(t, "category") or "").lower() in cats_lower]
 
     # Merchant/counterparty name filter
     merchant_name = args.get("merchant_name") or args.get("counterpartyName")
@@ -65,7 +91,7 @@ def _apply_filters(transactions: list, args: dict) -> list:
         name_lower = merchant_name.lower()
         filtered = [
             t for t in filtered
-            if name_lower in (t.get("merchant_name", "") or t.get("counterpartyName", "")).lower()
+            if name_lower in (_tx_field(t, "counterpartyName") or "").lower()
         ]
 
     # Date range — legacy or production names
@@ -88,7 +114,13 @@ def _apply_filters(transactions: list, args: dict) -> list:
     direction = args.get("transactionDirection")
     if direction:
         dir_lower = direction.lower()
-        filtered = [t for t in filtered if (t.get("transactionDirection") or t.get("type") or "").lower() == dir_lower]
+        filtered = [t for t in filtered if (_tx_field(t, "transactionDirection") or "").lower() == dir_lower]
+
+    # Transaction type filter (P2M / P2P)
+    tx_type = args.get("transactionType")
+    if tx_type:
+        type_lower = tx_type.lower()
+        filtered = [t for t in filtered if (t.get("transactionType") or "").lower() == type_lower]
 
     # Payment method filter
     payment_method = args.get("paymentMethod")
@@ -120,7 +152,7 @@ def _fetch_transactions(args: dict, fixtures: dict) -> Any:
         group_key = args["group_by"]
         groups: dict[str, list] = {}
         for t in filtered:
-            key = str(t.get(group_key, "unknown"))
+            key = str(_tx_field(t, group_key) or "unknown")
             groups.setdefault(key, []).append(t)
 
         grouped_result = []
@@ -170,7 +202,7 @@ def _fetch_transactions_aggregations(args: dict, fixtures: dict) -> Any:
         group_key = group_by_cols[0]
         groups: dict[str, list] = {}
         for t in filtered:
-            key = str(t.get(group_key, "unknown"))
+            key = str(_tx_field(t, group_key) or "unknown")
             groups.setdefault(key, []).append(t)
 
         result = []
@@ -211,31 +243,117 @@ def _fetch_transactions_aggregations(args: dict, fixtures: dict) -> Any:
     return {"status": "success", "result": value, "count": len(amounts)}
 
 
+def _format_profile_response(profile: dict) -> dict:
+    """Transform structured fixture profile data to production response format.
+
+    Fixture format (easy to edit):
+        monthlyIncomeRange: {min: 75000, max: 125000, currency: INR}
+        creditScore: {score: 850, maxScore: 900}
+        location: {city: Lucknow, state: UP, country: India}
+
+    Production format (what the model sees):
+        monthlyIncomeRange: "75000 to 125000 INR"
+        creditScore: "850 out of 900"
+        location: ["Lucknow", "Uttar Pradesh", "India"]
+    """
+    result: dict[str, Any] = {}
+
+    if "ageYears" in profile:
+        result["ageYears"] = profile["ageYears"]
+
+    location = profile.get("location")
+    if isinstance(location, dict):
+        result["location"] = [
+            location.get("city", ""),
+            location.get("state", ""),
+            location.get("country", ""),
+        ]
+    elif isinstance(location, list):
+        result["location"] = location
+
+    income = profile.get("monthlyIncomeRange")
+    if isinstance(income, dict):
+        result["monthlyIncomeRange"] = f"{income['min']} to {income['max']} {income.get('currency', 'INR')}"
+    elif income is not None:
+        result["monthlyIncomeRange"] = str(income)
+
+    credit = profile.get("creditScore")
+    if isinstance(credit, dict):
+        result["creditScore"] = f"{credit['score']} out of {credit['maxScore']}"
+    elif credit is not None:
+        result["creditScore"] = str(credit)
+
+    bank_accounts = profile.get("bankAccounts")
+    if bank_accounts:
+        result["bankAccountInfo"] = bank_accounts
+
+    cards = profile.get("cards")
+    if cards:
+        result["cardInfo"] = [
+            {
+                "issuerName": c.get("issuerName", ""),
+                "productInfo": c.get("productName", ""),
+                "cardType": c.get("cardType", ""),
+                "cardSchemeType": c.get("cardScheme", ""),
+            }
+            for c in cards
+        ]
+
+    return result
+
+
 def _get_user_profile(args: dict, fixtures: dict) -> Any:
     profile = fixtures.get("user_profile")
     if not profile:
         return {"status": "error", "error": "No user profile fixture loaded"}
+
+    # Structured fixture data → transform to production response format
+    if isinstance(profile.get("monthlyIncomeRange"), dict) or isinstance(profile.get("creditScore"), dict):
+        return {"status": "success", "result": _format_profile_response(profile)}
+
+    # Simple/raw format → return as-is (backward compat)
     return {"status": "success", "result": profile}
 
 
 def _get_cibil_data(args: dict, fixtures: dict) -> Any:
-    """Return CIBIL credit data from fixtures or a default mock."""
+    """Return CIBIL credit data from fixtures or build from user profile."""
     cibil = fixtures.get("cibil_data")
     if cibil:
         return {"status": "success", "result": cibil}
-    # Default mock when no fixture is loaded
+
+    # Build from user profile if available
+    profile = fixtures.get("user_profile", {})
+    credit = profile.get("creditScore", {})
+    cards = profile.get("cards", [])
+
+    score = credit.get("score", 750) if isinstance(credit, dict) else 750
+    max_score = credit.get("maxScore", 900) if isinstance(credit, dict) else 900
+
+    trade_lines = []
+    for card in cards:
+        trade_lines.append({
+            "institution": card.get("issuerName", ""),
+            "accountType": f"{card.get('cardType', 'Credit')} Card",
+            "productName": card.get("productName", ""),
+            "cardScheme": card.get("cardScheme", ""),
+        })
+
+    if not trade_lines:
+        trade_lines = [
+            {
+                "institution": "HDFC Bank",
+                "accountType": "Credit Card",
+                "outstandingBalance": 25000,
+                "estimatedInterestRate": 3.5,
+            },
+        ]
+
     return {
         "status": "success",
         "result": {
-            "creditScore": 750,
-            "activeTradeLines": [
-                {
-                    "institution": "HDFC Bank",
-                    "accountType": "Credit Card",
-                    "outstandingBalance": 25000,
-                    "estimatedInterestRate": 3.5,
-                },
-            ],
+            "creditScore": score,
+            "maxScore": max_score,
+            "activeTradeLines": trade_lines,
         },
     }
 

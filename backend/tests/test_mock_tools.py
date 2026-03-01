@@ -20,6 +20,41 @@ SAMPLE_FIXTURES = {
     "user_profile": {"name": "Jane Doe", "monthly_budget": 3000},
 }
 
+# Production format sample data (GPay India style)
+PRODUCTION_TRANSACTIONS = [
+    {"transactionId": "TX001", "counterpartyName": "Spencers", "transactionType": "P2M",
+     "merchantCategory": "Groceries and Supermarkets", "amount": 1037.10, "date": "2025-11-01",
+     "transactionDirection": "DEBIT"},
+    {"transactionId": "TX002", "counterpartyName": "Sneha Gupta", "transactionType": "P2P",
+     "amount": 1725.94, "date": "2025-11-04", "transactionDirection": "CREDIT"},
+    {"transactionId": "TX003", "counterpartyName": "Royal Cafe", "transactionType": "P2M",
+     "merchantCategory": "Restaurants", "amount": 851.47, "date": "2025-11-06",
+     "transactionDirection": "DEBIT"},
+    {"transactionId": "TX004", "counterpartyName": "Amazon India", "transactionType": "P2M",
+     "merchantCategory": "Online Marketplaces", "amount": 1740.20, "date": "2025-11-08",
+     "transactionDirection": "DEBIT"},
+    {"transactionId": "TX005", "counterpartyName": "Rohan Singh", "transactionType": "P2P",
+     "amount": 3505.38, "date": "2025-11-07", "transactionDirection": "DEBIT"},
+]
+
+PRODUCTION_PROFILE = {
+    "currentDate": "2025-11-28",
+    "ageYears": 41,
+    "location": {"city": "Lucknow", "state": "Uttar Pradesh", "country": "India"},
+    "monthlyIncomeRange": {"min": 75000, "max": 125000, "currency": "INR"},
+    "creditScore": {"score": 850, "maxScore": 900},
+    "bankAccounts": [{"issuerName": "ICICI Bank"}],
+    "cards": [
+        {"issuerName": "ICICI Bank", "productName": "Platinum Chip Card",
+         "cardType": "CREDIT", "cardScheme": "MASTER"},
+    ],
+}
+
+PRODUCTION_FIXTURES = {
+    "transactions": PRODUCTION_TRANSACTIONS,
+    "user_profile": PRODUCTION_PROFILE,
+}
+
 
 class TestGetTransactionHistory:
     """Tests for the getTransactionHistory tool."""
@@ -297,3 +332,116 @@ class TestCodeExecution:
                               SAMPLE_FIXTURES)
         assert result["returncode"] == 0
         assert "4" in result["stdout"]
+
+
+class TestProductionFormatTransactions:
+    """Tests for production format transactions with merchantCategory, counterpartyName, etc."""
+
+    def test_filter_by_merchant_category(self):
+        result = execute_tool("GET_TRANSACTION_HISTORY", {
+            "merchantCategories": ["Restaurants"],
+        }, PRODUCTION_FIXTURES)
+        assert len(result["result"]) == 1
+        assert result["result"][0]["counterpartyName"] == "Royal Cafe"
+
+    def test_filter_by_counterparty_name(self):
+        result = execute_tool("GET_TRANSACTION_HISTORY", {
+            "counterpartyName": "Sneha",
+        }, PRODUCTION_FIXTURES)
+        assert len(result["result"]) == 1
+        assert result["result"][0]["counterpartyName"] == "Sneha Gupta"
+
+    def test_filter_by_transaction_direction(self):
+        result = execute_tool("GET_TRANSACTION_HISTORY", {
+            "transactionDirection": "CREDIT",
+        }, PRODUCTION_FIXTURES)
+        assert len(result["result"]) == 1
+        assert result["result"][0]["transactionDirection"] == "CREDIT"
+
+    def test_filter_by_transaction_type_p2p(self):
+        result = execute_tool("GET_TRANSACTION_HISTORY", {
+            "transactionType": "P2P",
+        }, PRODUCTION_FIXTURES)
+        assert len(result["result"]) == 2  # Sneha Gupta (CREDIT) + Rohan Singh (DEBIT)
+
+    def test_filter_by_transaction_type_p2m(self):
+        result = execute_tool("GET_TRANSACTION_HISTORY", {
+            "transactionType": "P2M",
+        }, PRODUCTION_FIXTURES)
+        assert len(result["result"]) == 3
+
+    def test_combined_direction_and_type_filter(self):
+        result = execute_tool("GET_TRANSACTION_HISTORY", {
+            "transactionType": "P2P",
+            "transactionDirection": "DEBIT",
+        }, PRODUCTION_FIXTURES)
+        assert len(result["result"]) == 1
+        assert result["result"][0]["counterpartyName"] == "Rohan Singh"
+
+    def test_aggregation_by_merchant_category(self):
+        result = execute_tool("GET_TRANSACTION_HISTORY_AGGREGATIONS", {
+            "groupByColumns": ["merchantCategory"],
+            "transactionDirection": "DEBIT",
+        }, PRODUCTION_FIXTURES)
+        assert result["status"] == "success"
+        categories = {r["merchantCategory"] for r in result["result"]}
+        assert "Restaurants" in categories
+        assert "Groceries and Supermarkets" in categories
+
+    def test_date_filter_with_production_params(self):
+        result = execute_tool("GET_TRANSACTION_HISTORY", {
+            "startDate": "2025-11-05",
+            "endDate": "2025-11-07",
+        }, PRODUCTION_FIXTURES)
+        # Nov 6: Royal Cafe, Nov 7: Rohan Singh
+        assert len(result["result"]) == 2
+
+    def test_p2p_transactions_have_no_merchant_category(self):
+        """P2P transfers should not have a merchantCategory field."""
+        result = execute_tool("GET_TRANSACTION_HISTORY", {
+            "transactionType": "P2P",
+        }, PRODUCTION_FIXTURES)
+        for tx in result["result"]:
+            assert "merchantCategory" not in tx
+
+    def test_grouping_by_category_on_production_data(self):
+        """Grouping by 'category' should fall back to merchantCategory in production data."""
+        result = execute_tool("getTransactionHistory", {
+            "group_by": "category",
+        }, PRODUCTION_FIXTURES)
+        assert "groups" in result
+        group_keys = {g["category"] for g in result["groups"]}
+        assert "Restaurants" in group_keys
+
+
+class TestProductionFormatUserProfile:
+    """Tests for structured user profile transformation to production format."""
+
+    def test_structured_profile_transforms(self):
+        result = execute_tool("GET_GPAY_USER_DATA_FOR_FINANCIAL_ASSISTANT", {}, PRODUCTION_FIXTURES)
+        assert result["status"] == "success"
+        r = result["result"]
+        assert r["ageYears"] == 41
+        assert r["location"] == ["Lucknow", "Uttar Pradesh", "India"]
+        assert r["monthlyIncomeRange"] == "75000 to 125000 INR"
+        assert r["creditScore"] == "850 out of 900"
+        assert len(r["bankAccountInfo"]) == 1
+        assert r["bankAccountInfo"][0]["issuerName"] == "ICICI Bank"
+        assert len(r["cardInfo"]) == 1
+        assert r["cardInfo"][0]["productInfo"] == "Platinum Chip Card"
+        assert r["cardInfo"][0]["cardSchemeType"] == "MASTER"
+
+    def test_simple_profile_returns_as_is(self):
+        """Old-format profiles should pass through without transformation."""
+        result = execute_tool("getUserProfile", {}, SAMPLE_FIXTURES)
+        assert result["result"]["name"] == "Jane Doe"
+        assert result["result"]["monthly_budget"] == 3000
+
+    def test_cibil_built_from_profile(self):
+        """CIBIL handler should build response from user_profile when no cibil_data fixture."""
+        result = execute_tool("GET_CIBIL_DATA", {}, PRODUCTION_FIXTURES)
+        assert result["status"] == "success"
+        assert result["result"]["creditScore"] == 850
+        assert result["result"]["maxScore"] == 900
+        assert len(result["result"]["activeTradeLines"]) == 1
+        assert result["result"]["activeTradeLines"][0]["institution"] == "ICICI Bank"
