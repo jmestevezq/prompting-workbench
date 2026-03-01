@@ -84,7 +84,7 @@ export const api = {
   diffEvalRuns: (runId: string, otherId: string) => request<unknown>(`/eval/runs/${runId}/diff/${otherId}`),
 
   // Transcript Generation
-  generateTranscripts: (data: { reference_transcript_ids: string[]; prompt: string; count?: number; model?: string }) =>
+  generateTranscripts: (data: { reference_transcript_ids: string[]; prompt: string; count?: number; model?: string; agent_id?: string; auto_save?: boolean }) =>
     request<{ generated: { content: string; tags: string[] }[]; saved_ids: string[] }>('/generate/transcripts', { method: 'POST', body: JSON.stringify(data) }),
 
   // Golden Sets
