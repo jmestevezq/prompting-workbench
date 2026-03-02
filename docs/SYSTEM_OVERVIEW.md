@@ -88,6 +88,7 @@ An interactive chat environment where a developer can:
 - Inspect every Gemini API call (raw request, raw response, token usage)
 - Override tool responses to test edge cases without modifying fixture data
 - Rerun any agent turn with a modified prompt, tool response, or conversation history
+- Lock tool responses on rerun — inject existing (or edited) responses and skip new tool calls, so Gemini only generates text from the locked data
 - Save prompt snapshots as named versions
 
 **Data flow:** Browser → WebSocket → `chat.py` router → `agent_runtime.py` (session loop) → `gemini_client.py` → Gemini API → `mock_tools.py` (tool execution) → streaming events back to browser.
