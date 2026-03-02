@@ -7,30 +7,36 @@ describe('StatusBadge', () => {
     expect(screen.getByText('pass')).toBeInTheDocument()
   })
 
-  it('applies green styles for pass status', () => {
+  it('applies emerald styles for pass status', () => {
     render(<StatusBadge status="pass" />)
     const badge = screen.getByText('pass')
-    expect(badge.className).toContain('bg-green-100')
-    expect(badge.className).toContain('text-green-700')
+    expect(badge.className).toContain('bg-emerald-50')
+    expect(badge.className).toContain('text-emerald-700')
   })
 
-  it('applies red styles for fail status', () => {
+  it('applies rose styles for fail status', () => {
     render(<StatusBadge status="fail" />)
     const badge = screen.getByText('fail')
-    expect(badge.className).toContain('bg-red-100')
-    expect(badge.className).toContain('text-red-700')
+    expect(badge.className).toContain('bg-rose-50')
+    expect(badge.className).toContain('text-rose-700')
   })
 
-  it('applies gray fallback for unknown status', () => {
+  it('applies slate fallback for unknown status', () => {
     render(<StatusBadge status="unknown" />)
     const badge = screen.getByText('unknown')
-    expect(badge.className).toContain('bg-gray-100')
-    expect(badge.className).toContain('text-gray-700')
+    expect(badge.className).toContain('bg-slate-100')
+    expect(badge.className).toContain('text-slate-600')
   })
 
   it('accepts custom className', () => {
     render(<StatusBadge status="pass" className="ml-2" />)
     const badge = screen.getByText('pass')
     expect(badge.className).toContain('ml-2')
+  })
+
+  it('renders with rounded-full pill shape', () => {
+    render(<StatusBadge status="pending" />)
+    const badge = screen.getByText('pending')
+    expect(badge.className).toContain('rounded-full')
   })
 })

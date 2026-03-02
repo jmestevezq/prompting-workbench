@@ -31,19 +31,19 @@ describe('DiffViewer — content rendering', () => {
   it('renders the content of identical files without highlights', () => {
     const { container } = render(<DiffViewer left="same line" right="same line" />)
     expect(screen.getAllByText('same line').length).toBeGreaterThanOrEqual(1)
-    expect(container.querySelectorAll('.bg-red-50')).toHaveLength(0)
-    expect(container.querySelectorAll('.bg-green-50')).toHaveLength(0)
+    expect(container.querySelectorAll('.bg-rose-50')).toHaveLength(0)
+    expect(container.querySelectorAll('.bg-emerald-50')).toHaveLength(0)
   })
 
   it('highlights the left side in red when lines differ', () => {
     const { container } = render(<DiffViewer left="old line" right="new line" />)
-    const redLines = container.querySelectorAll('.bg-red-50')
+    const redLines = container.querySelectorAll('.bg-rose-50')
     expect(redLines.length).toBeGreaterThan(0)
   })
 
   it('highlights the right side in green when lines differ', () => {
     const { container } = render(<DiffViewer left="old line" right="new line" />)
-    const greenLines = container.querySelectorAll('.bg-green-50')
+    const greenLines = container.querySelectorAll('.bg-emerald-50')
     expect(greenLines.length).toBeGreaterThan(0)
   })
 
@@ -52,16 +52,16 @@ describe('DiffViewer — content rendering', () => {
       <DiffViewer left="same\nold text\nsame" right="same\nnew text\nsame" />,
     )
     // Only 1 line changed per side
-    expect(container.querySelectorAll('.bg-red-50')).toHaveLength(1)
-    expect(container.querySelectorAll('.bg-green-50')).toHaveLength(1)
+    expect(container.querySelectorAll('.bg-rose-50')).toHaveLength(1)
+    expect(container.querySelectorAll('.bg-emerald-50')).toHaveLength(1)
   })
 
   it('does not highlight unchanged lines', () => {
     const { container } = render(
       <DiffViewer left="line1\nline2" right="line1\nline2" />,
     )
-    expect(container.querySelectorAll('.bg-red-50')).toHaveLength(0)
-    expect(container.querySelectorAll('.bg-green-50')).toHaveLength(0)
+    expect(container.querySelectorAll('.bg-rose-50')).toHaveLength(0)
+    expect(container.querySelectorAll('.bg-emerald-50')).toHaveLength(0)
   })
 })
 
@@ -83,12 +83,12 @@ describe('DiffViewer — unequal line counts', () => {
   it('marks extra left lines (no right counterpart) as changed', () => {
     const { container } = render(<DiffViewer left="a\nb" right="a" />)
     // "b" on the left has no counterpart on the right — should be highlighted
-    expect(container.querySelectorAll('.bg-red-50').length).toBeGreaterThan(0)
+    expect(container.querySelectorAll('.bg-rose-50').length).toBeGreaterThan(0)
   })
 
   it('marks extra right lines (no left counterpart) as changed', () => {
     const { container } = render(<DiffViewer left="a" right="a\nb" />)
-    expect(container.querySelectorAll('.bg-green-50').length).toBeGreaterThan(0)
+    expect(container.querySelectorAll('.bg-emerald-50').length).toBeGreaterThan(0)
   })
 })
 
