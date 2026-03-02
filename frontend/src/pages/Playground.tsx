@@ -31,18 +31,26 @@ export default function Playground() {
   const [wsConnected, setWsConnected] = useState(false)
   const wasConnectedRef = useRef(false)
   const [isStreaming, setIsStreaming] = useState(false)
+  const [fixturesLoaded, setFixturesLoaded] = useState(false)
 
   // Keep a ref to selectedFixtureIds so startSession always reads the latest
   const fixtureIdsRef = useRef(selectedFixtureIds)
   fixtureIdsRef.current = selectedFixtureIds
 
-  // Load agents and fixtures on mount, auto-select all fixtures
+  // Load agents and fixtures on mount, auto-select one fixture per type
   useEffect(() => {
     api.listAgents().then(setAgents)
     api.listFixtures().then((loaded: Fixture[]) => {
       setFixtures(loaded)
-      // Auto-select all fixtures so data is available when a session starts
-      setSelectedFixtureIds(loaded.map((f) => f.id))
+      // Auto-select first fixture of each type so exactly one per type is active
+      const byType = new Map<string, string>()
+      for (const f of loaded) {
+        if (!byType.has(f.type)) {
+          byType.set(f.type, f.id)
+        }
+      }
+      setSelectedFixtureIds(Array.from(byType.values()))
+      setFixturesLoaded(true)
     })
   }, [setFixtures])
 
@@ -203,8 +211,23 @@ export default function Playground() {
     }
   }
 
-  const handleAgentSelect = (agent: Agent) => {
+  const handleAgentSelect = async (agent: Agent) => {
     setActiveAgent(agent)
+    // If fixtures haven't loaded yet, wait — don't create a session with empty fixtures
+    if (!fixturesLoaded) {
+      const loaded = await api.listFixtures()
+      setFixtures(loaded)
+      const byType = new Map<string, string>()
+      for (const f of loaded) {
+        if (!byType.has(f.type)) {
+          byType.set(f.type, f.id)
+        }
+      }
+      const ids = Array.from(byType.values())
+      setSelectedFixtureIds(ids)
+      fixtureIdsRef.current = ids
+      setFixturesLoaded(true)
+    }
     startSession(agent)
   }
 
@@ -257,6 +280,7 @@ export default function Playground() {
         activeAgent={activeAgent}
         fixtures={fixtures}
         selectedFixtureIds={selectedFixtureIds}
+        fixturesLoaded={fixturesLoaded}
         onAgentSelect={handleAgentSelect}
         onAgentUpdate={handleAgentUpdate}
         onFixtureSelect={handleFixtureSelect}

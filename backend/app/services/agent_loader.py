@@ -78,6 +78,53 @@ def _resolve_template_variable(
         raise AgentLoadError(f"Error rendering sub-template '{path}': {e}")
 
 
+def render_from_stored(
+    raw_template: str,
+    variable_definitions: dict,
+    variables: dict,
+    agent_config: dict | None = None,
+    variable_overrides: dict | None = None,
+) -> str:
+    """Re-render a template using stored variable definitions and resolved values.
+
+    Re-resolves programmatic variables (e.g. currentDate) for freshness,
+    keeps static variables as-is from the stored `variables` dict.
+    Template-type variables use the stored pre-resolved value (no filesystem access).
+
+    Args:
+        raw_template: The original .ftl template string.
+        variable_definitions: Original YAML variable defs (type, code, etc.).
+        variables: Previously resolved variable values.
+        agent_config: Optional agent config dict for programmatic vars that
+            reference agent["tools"], agent["widgets"], etc.
+        variable_overrides: Optional dict of variable values that take precedence
+            over both stored and re-resolved values. Used e.g. to force
+            currentDate to the UI simulation date instead of today.
+
+    Returns:
+        The rendered prompt string.
+    """
+    resolved = dict(variables)
+
+    # Re-resolve programmatic variables for freshness
+    config_for_exec = agent_config or {}
+    for var_name, var_def in variable_definitions.items():
+        if var_def.get("type") == "programmatic":
+            code = var_def.get("code", "")
+            resolved[var_name] = _resolve_programmatic_variable(code, config_for_exec)
+
+    # Apply explicit overrides last — these win over everything
+    if variable_overrides:
+        resolved.update(variable_overrides)
+
+    template_model = {"model": resolved}
+
+    try:
+        return _renderer.render(raw_template, template_model)
+    except FreemarkerError as e:
+        raise AgentLoadError(f"Error rendering stored template: {e}")
+
+
 def load_agent_from_folder(folder_path: str | Path) -> AgentSnapshot:
     """
     Load an agent definition from a folder.

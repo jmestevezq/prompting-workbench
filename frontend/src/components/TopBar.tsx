@@ -7,7 +7,6 @@ const pageTitles: Record<string, string> = {
   '/autorater': 'Autorater',
   '/generator': 'Transcript Generator',
   '/classification': 'Classification',
-  '/devlogs': 'Developer Console',
   '/settings': 'Settings',
 }
 

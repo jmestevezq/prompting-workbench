@@ -12,6 +12,7 @@ import {
   ChevronsLeft,
   type LucideIcon,
 } from 'lucide-react'
+import { useDevLogStore } from '../store/devLogStore'
 
 interface NavItem {
   to: string
@@ -27,8 +28,7 @@ const topItems: NavItem[] = [
   { to: '/classification', icon: Tags, label: 'Classification' },
 ]
 
-const bottomItems: NavItem[] = [
-  { to: '/devlogs', icon: Terminal, label: 'Dev Logs' },
+const bottomNavItems: NavItem[] = [
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
@@ -69,6 +69,7 @@ export default function IconRail() {
     const stored = localStorage.getItem(STORAGE_KEY)
     return stored === null ? true : stored === 'true'
   })
+  const { isPanelOpen, togglePanel } = useDevLogStore()
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, String(collapsed))
@@ -101,10 +102,36 @@ export default function IconRail() {
 
       {/* Bottom nav */}
       <nav className={`flex flex-col gap-1 ${collapsed ? 'items-center' : 'px-2'}`}>
-        {bottomItems.map((item) => (
+        {/* Dev Logs toggle button (not a route) */}
+        <button
+          onClick={togglePanel}
+          title={collapsed ? 'Dev Logs' : undefined}
+          aria-label="Toggle developer console"
+          className={`group relative flex items-center h-10 rounded-lg transition-all duration-150 ${
+            collapsed ? 'justify-center w-10' : 'justify-start w-full px-3 gap-2.5'
+          } ${
+            isPanelOpen
+              ? 'bg-indigo-50 text-indigo-600'
+              : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Terminal size={20} strokeWidth={1.75} className="shrink-0" />
+          {collapsed ? (
+            <span className="absolute left-full ml-2 px-2 py-1 text-xs font-medium text-white bg-slate-800 rounded-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity duration-150 z-50">
+              Dev Logs
+            </span>
+          ) : (
+            <span className="text-[13px] font-medium whitespace-nowrap overflow-hidden">
+              Dev Logs
+            </span>
+          )}
+        </button>
+
+        {bottomNavItems.map((item) => (
           <RailLink key={item.to} item={item} collapsed={collapsed} />
         ))}
-        {/* Toggle button */}
+
+        {/* Collapse sidebar toggle */}
         <button
           onClick={() => setCollapsed((prev) => !prev)}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}

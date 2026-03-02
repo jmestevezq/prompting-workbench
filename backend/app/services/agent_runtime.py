@@ -17,6 +17,7 @@ from google.genai import types
 from app.database import get_db
 from app.services import gemini_client
 from app.services.mock_tools import execute_tool
+from app.services.agent_loader import render_from_stored, AgentLoadError
 from app.services.log_service import dev_log
 
 
@@ -112,6 +113,15 @@ class SessionState:
                 version = await cursor.fetchone()
                 if version:
                     self.agent_config["system_prompt"] = version["system_prompt"]
+                    # Template data for on-the-fly rendering
+                    self.agent_config["raw_template"] = version["raw_template"]
+                    self.agent_config["variables"] = json.loads(version["variables"]) if version["variables"] else None
+                    self.agent_config["variable_definitions"] = json.loads(version["variable_definitions"]) if version["variable_definitions"] else None
+                    # Store tools/widgets for programmatic var re-resolution
+                    if version["tools"]:
+                        self.agent_config["tools"] = json.loads(version["tools"])
+                    if version["widget_details"]:
+                        self.agent_config["widgets"] = json.loads(version["widget_details"])
                     if version["tool_details"]:
                         tool_details = json.loads(version["tool_details"])
                         if tool_details:
@@ -210,11 +220,38 @@ async def run_agent_turn(
         "user_message": user_message[:80] if user_message else None,
     })
 
-    system_prompt = system_prompt_override or state.agent_config["system_prompt"]
+    if system_prompt_override:
+        # Rerun: user edited the rendered prompt — use as-is
+        system_prompt = system_prompt_override
+    else:
+        raw_template = state.agent_config.get("raw_template")
+        variables = state.agent_config.get("variables")
+        var_defs = state.agent_config.get("variable_definitions")
+
+        if raw_template and variables is not None and var_defs is not None:
+            # On-the-fly rendering from template (source of truth)
+            # If a simulation date is set in the UI, override currentDate
+            # so the template renders with the UI date, not today's real date
+            var_overrides = None
+            if state.simulation_date:
+                var_overrides = {"currentDate": state.simulation_date}
+            try:
+                system_prompt = render_from_stored(
+                    raw_template, var_defs, variables,
+                    agent_config=state.agent_config,
+                    variable_overrides=var_overrides,
+                )
+            except AgentLoadError:
+                # Fallback to pre-rendered prompt if rendering fails
+                system_prompt = state.agent_config["system_prompt"]
+        else:
+            # UI-created version or no template — use pre-rendered prompt
+            system_prompt = state.agent_config["system_prompt"]
+
     model = state.agent_config["model"]
     tool_defs = state.agent_config["tool_definitions"]
 
-    # Inject current date (fixture override or actual date)
+    # Append simulation date override (covers both paths)
     current_date = state.simulation_date or date.today().isoformat()
     system_prompt += f"\n\nToday's date is {current_date}."
 

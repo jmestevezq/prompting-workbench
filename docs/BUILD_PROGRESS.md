@@ -195,11 +195,21 @@ Terminal-style real-time log viewer (`/devlogs`) with backend SSE stream and fro
 - Backend: 16 new tests (9 log_service unit tests, 7 devlogs_api tests)
 - Frontend: 39 new tests (9 devlog.ts, 13 devLogStore, 6 LogEntry, 11 DevLogs page)
 
+## Phase 15: On-the-Fly Template Rendering - COMPLETE
+
+Template rendering now happens at inference time instead of only at import time:
+
+- `render_from_stored()`: New pure function in `agent_loader.py` that re-renders templates from DB-stored data, re-resolving programmatic variables (e.g., `currentDate`) for freshness
+- `SessionState.load()`: Now loads template data (`raw_template`, `variables`, `variable_definitions`, `tools`, `widgets`) from `agent_versions`
+- `run_agent_turn()`: Renders from template on-the-fly when available; falls back to stored `system_prompt` for UI-created versions or when no template exists; uses override directly on reruns
+- Error resilience: Falls back to stored prompt if template rendering fails
+- 8 new `render_from_stored` tests + 6 new `run_agent_turn` rendering tests (all passing)
+
 ## Current Status
-All 14 phases complete. The system includes a real-time Developer Log Console for debugging prompt iterations.
+All 15 phases complete. The system includes on-the-fly template rendering for fresh programmatic variables at inference time.
 
 ## Test Coverage
-- Backend: ~450 tests via pytest (all routers and services; eval run tests require Gemini API key)
+- Backend: ~462 tests via pytest (all routers and services; eval run tests require Gemini API key)
 - Frontend: 210 tests via vitest (components, pages, lib modules, stores)
 
 ## Known Gaps / Future Work

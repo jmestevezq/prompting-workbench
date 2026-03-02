@@ -20,6 +20,7 @@ beforeEach(() => {
     filters: { source: 'all', level: 'all', category: '', search: '' },
     isPaused: false,
     isConnected: false,
+    isPanelOpen: false,
   })
 })
 
@@ -83,6 +84,29 @@ describe('setConnected', () => {
     expect(useDevLogStore.getState().isConnected).toBe(true)
     useDevLogStore.getState().setConnected(false)
     expect(useDevLogStore.getState().isConnected).toBe(false)
+  })
+})
+
+describe('togglePanel', () => {
+  it('toggles isPanelOpen', () => {
+    expect(useDevLogStore.getState().isPanelOpen).toBe(false)
+    useDevLogStore.getState().togglePanel()
+    expect(useDevLogStore.getState().isPanelOpen).toBe(true)
+    useDevLogStore.getState().togglePanel()
+    expect(useDevLogStore.getState().isPanelOpen).toBe(false)
+  })
+})
+
+describe('openPanel', () => {
+  it('sets isPanelOpen to true', () => {
+    useDevLogStore.getState().openPanel()
+    expect(useDevLogStore.getState().isPanelOpen).toBe(true)
+  })
+
+  it('is idempotent when already open', () => {
+    useDevLogStore.setState({ isPanelOpen: true })
+    useDevLogStore.getState().openPanel()
+    expect(useDevLogStore.getState().isPanelOpen).toBe(true)
   })
 })
 

@@ -93,6 +93,7 @@ interface AgentConfigPanelProps {
   activeAgent: Agent | null
   fixtures: Fixture[]
   selectedFixtureIds: string[]
+  fixturesLoaded: boolean
   onAgentSelect: (agent: Agent) => void
   onAgentUpdate: (updates: Partial<Agent>) => void
   onFixtureSelect: (ids: string[]) => void
@@ -110,6 +111,7 @@ export default function AgentConfigPanel({
   activeAgent,
   fixtures,
   selectedFixtureIds,
+  fixturesLoaded,
   onAgentSelect,
   onAgentUpdate,
   onFixtureSelect,
@@ -187,9 +189,10 @@ export default function AgentConfigPanel({
             const agent = agents.find((a) => a.id === e.target.value)
             if (agent) onAgentSelect(agent)
           }}
-          className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
+          disabled={!fixturesLoaded}
+          className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm disabled:opacity-50"
         >
-          <option value="">Select agent...</option>
+          <option value="">{fixturesLoaded ? 'Select agent...' : 'Loading fixtures...'}</option>
           {agents.map((a) => (
             <option key={a.id} value={a.id}>{a.name}</option>
           ))}

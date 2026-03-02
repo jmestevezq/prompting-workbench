@@ -187,6 +187,18 @@ Loads a complete agent definition from a folder on disk. Used by the import endp
 
 Fully resolved agent definition with all fields: `name`, `version`, `model`, `description`, `system_prompt` (rendered), `raw_template` (original .ftl), `variables` (resolved values), `variable_definitions` (original YAML defs), `tools`, `widgets`, `tool_details`, `widget_details`, `tool_definitions`.
 
+**`render_from_stored(raw_template, variable_definitions, variables, agent_config=None)`**
+
+Re-renders a template from DB-stored data at inference time (on-the-fly rendering). Used by the agent runtime to ensure programmatic variables (e.g., `currentDate`) are always fresh.
+
+Logic:
+1. Start with the stored `variables` dict
+2. Re-resolve `programmatic` variables by re-executing their code snippets — this produces fresh values (e.g., today's date)
+3. Skip `static` and `template` variables — use stored values as-is (template vars need filesystem access which isn't available at runtime)
+4. Build `{"model": resolved}` template model and render via `FreemarkerRenderer`
+
+The `agent_config` parameter provides the dict available as `agent` inside programmatic variable code (needed for vars that reference `agent["tools"]` etc.).
+
 **`load_agent_from_folder(folder_path)`**
 
 Resolution pipeline:
@@ -255,22 +267,28 @@ Serialization helpers (`_serialize_contents`, `_serialize_tool`, `_serialize_res
 **`SessionState`**
 
 In-memory state for one active chat session:
-- `agent_config` — loaded from DB (name, system_prompt, model, tool_definitions)
+- `agent_config` — loaded from DB (name, system_prompt, model, tool_definitions, plus template data: raw_template, variables, variable_definitions, tools, widgets)
 - `fixtures` — dict keyed by fixture type (e.g. `{"transactions": [...], "user_profile": {...}}`)
 - `fixture_ids` — list of active fixture IDs
 - `tool_overrides` — session-level override dict
 - `conversation_history` — list of turn dicts
 
-`load()` reads all data from DB. `swap_fixtures(new_ids)` updates DB and reloads fixture data into memory.
+`load()` reads all data from DB, including template rendering data from `agent_versions` for on-the-fly rendering. `swap_fixtures(new_ids)` updates DB and reloads fixture data into memory.
 
 **`run_agent_turn(state, user_message=None, ..., skip_tool_calls=False)`** — `AsyncGenerator`
 
 The main agent loop, yielding events for streaming:
 
-1. Optionally saves the user turn to DB
-2. Builds `contents` from conversation history via `gemini_client.build_contents()`
-3. If `skip_tool_calls=True`, tool declarations are omitted from the Gemini request — Gemini can only respond with text (used by "Lock responses" rerun mode)
-4. Loops up to `max_iterations=10`:
+1. **System prompt resolution** (on-the-fly template rendering):
+   - If `system_prompt_override` is set (rerun): use the override directly
+   - If `raw_template` + `variables` + `variable_definitions` are present: render the template on-the-fly via `render_from_stored()`, re-resolving programmatic variables for freshness (e.g., `currentDate` gets today's date)
+   - Otherwise (UI-created version, no template): use the stored `system_prompt`
+   - Falls back to stored `system_prompt` if template rendering fails
+   - Appends simulation date suffix in all cases
+2. Optionally saves the user turn to DB
+3. Builds `contents` from conversation history via `gemini_client.build_contents()`
+4. If `skip_tool_calls=True`, tool declarations are omitted from the Gemini request — Gemini can only respond with text (used by "Lock responses" rerun mode)
+5. Loops up to `max_iterations=10`:
    - Calls `gemini_client.generate()`
    - If response contains `function_calls`: executes all tools in parallel via `asyncio.gather()` (one executor task per tool), groups them into ADK-style batched Content objects, continues loop
    - If response contains text: simulates streaming by yielding 3-word chunks

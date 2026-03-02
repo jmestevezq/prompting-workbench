@@ -1,8 +1,12 @@
 """Tests for the agent loader service."""
 
+import re
 import pytest
 from pathlib import Path
-from app.services.agent_loader import load_agent_from_folder, list_agent_folders, AgentLoadError
+from unittest.mock import patch
+from app.services.agent_loader import (
+    load_agent_from_folder, list_agent_folders, render_from_stored, AgentLoadError,
+)
 
 
 AGENTS_DIR = Path(__file__).resolve().parent.parent / "agents"
@@ -182,3 +186,151 @@ class TestListAgentFolders:
         (tmp_path / "has-yaml" / "agent.yaml").write_text("name: test")
         folders = list_agent_folders(tmp_path)
         assert folders == ["has-yaml"]
+
+
+class TestRenderFromStored:
+    """Tests for render_from_stored() — on-the-fly template rendering."""
+
+    def test_static_and_programmatic_variables(self):
+        """Static vars stay as-is, programmatic vars are re-executed."""
+        template = "Hello ${model.name}, today is ${model.today}."
+        var_defs = {
+            "name": {"type": "static", "value": "Alice"},
+            "today": {
+                "type": "programmatic",
+                "code": "from datetime import date\nresult = date.today().isoformat()",
+            },
+        }
+        variables = {"name": "Alice", "today": "2020-01-01"}
+
+        result = render_from_stored(template, var_defs, variables)
+        from datetime import date
+        assert f"Hello Alice, today is {date.today().isoformat()}." == result
+
+    def test_programmatic_vars_are_fresh(self):
+        """Programmatic variables should be re-resolved (not use stored value)."""
+        template = "Date: ${model.d}"
+        var_defs = {
+            "d": {
+                "type": "programmatic",
+                "code": "from datetime import date\nresult = date.today().isoformat()",
+            },
+        }
+        # Stored value is stale
+        variables = {"d": "1999-12-31"}
+
+        result = render_from_stored(template, var_defs, variables)
+        from datetime import date
+        assert date.today().isoformat() in result
+        assert "1999-12-31" not in result
+
+    def test_template_type_uses_stored_value(self):
+        """Template-type variables should use stored pre-resolved value."""
+        template = "Guide: ${model.guide}"
+        var_defs = {
+            "guide": {"type": "template", "path": "guide.ftl"},
+        }
+        variables = {"guide": "This is the pre-rendered guide content."}
+
+        result = render_from_stored(template, var_defs, variables)
+        assert "This is the pre-rendered guide content." in result
+
+    def test_static_only(self):
+        """Works with only static variables."""
+        template = "Hi ${model.x} and ${model.y}."
+        var_defs = {
+            "x": {"type": "static", "value": "A"},
+            "y": {"type": "static", "value": "B"},
+        }
+        variables = {"x": "A", "y": "B"}
+
+        result = render_from_stored(template, var_defs, variables)
+        assert result == "Hi A and B."
+
+    def test_agent_config_passed_to_programmatic(self):
+        """Programmatic vars can access agent_config dict."""
+        template = "Tools: ${model.tool_count}"
+        var_defs = {
+            "tool_count": {
+                "type": "programmatic",
+                "code": "result = str(len(agent.get('tools', [])))",
+            },
+        }
+        variables = {"tool_count": "0"}
+        agent_config = {"tools": ["a", "b", "c"]}
+
+        result = render_from_stored(template, var_defs, variables, agent_config=agent_config)
+        assert "Tools: 3" == result
+
+    def test_variable_overrides_win_over_programmatic(self):
+        """variable_overrides should override even re-resolved programmatic vars."""
+        template = "Date: ${model.d}"
+        var_defs = {
+            "d": {
+                "type": "programmatic",
+                "code": "from datetime import date\nresult = date.today().isoformat()",
+            },
+        }
+        variables = {"d": "1999-12-31"}
+
+        result = render_from_stored(
+            template, var_defs, variables,
+            variable_overrides={"d": "2025-06-15"},
+        )
+        assert "Date: 2025-06-15" == result
+
+    def test_variable_overrides_win_over_static(self):
+        """variable_overrides should override static vars too."""
+        template = "Hi ${model.name}"
+        var_defs = {"name": {"type": "static", "value": "Alice"}}
+        variables = {"name": "Alice"}
+
+        result = render_from_stored(
+            template, var_defs, variables,
+            variable_overrides={"name": "Bob"},
+        )
+        assert "Hi Bob" == result
+
+    def test_bad_programmatic_raises(self):
+        """Invalid programmatic code raises AgentLoadError."""
+        template = "Hi ${model.x}"
+        var_defs = {
+            "x": {"type": "programmatic", "code": "raise RuntimeError('boom')"},
+        }
+        variables = {"x": "old"}
+
+        with pytest.raises(AgentLoadError, match="execution failed"):
+            render_from_stored(template, var_defs, variables)
+
+    def test_bad_template_raises(self):
+        """Invalid template syntax raises AgentLoadError."""
+        template = "Hi ${model.missing_var}"
+        var_defs = {}
+        variables = {}
+
+        with pytest.raises(AgentLoadError, match="rendering stored template"):
+            render_from_stored(template, var_defs, variables)
+
+    def test_with_real_sherlock_data(self):
+        """Round-trip: load from folder, then re-render from stored data."""
+        snapshot = load_agent_from_folder(SHERLOCK_DIR)
+
+        # Reconstruct minimal agent_config as the runtime would
+        agent_config = {
+            "tools": snapshot.tools,
+            "widgets": snapshot.widgets,
+        }
+
+        result = render_from_stored(
+            snapshot.raw_template,
+            snapshot.variable_definitions,
+            snapshot.variables,
+            agent_config=agent_config,
+        )
+
+        # Should contain the same key content as the original render
+        assert "financial assistant" in result.lower()
+        assert "Tool Usage Guidelines" in result
+        # currentDate should be today (freshly resolved)
+        from datetime import date
+        assert date.today().isoformat() in result
