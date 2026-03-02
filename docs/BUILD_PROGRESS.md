@@ -60,12 +60,46 @@
 - **Lock responses toggle:** New "Lock responses" checkbox in DebugPanel edit mode. When enabled, the original (or edited) tool responses are injected directly into conversation history and Gemini is called without tool declarations — it can only produce text, no new tool calls. This allows testing how Gemini interprets specific tool data without re-executing tools.
 - **Simulation date in Playground:** Date picker in the AgentConfigPanel Fixtures section that reads/writes `currentDate` from the user_profile fixture. Syncs to the agent runtime's system prompt injection.
 
+## Phase 10: UI Overhaul - COMPLETE
+Premium developer-tool aesthetic (Linear/Vercel light mode style):
+
+**Design System Foundation:**
+- Inter Variable + JetBrains Mono Variable fonts
+- Indigo/violet primary accent (#6366f1), slate neutrals
+- CSS custom properties for fonts and shadows
+- Custom Monaco light theme (`workbench-light`)
+
+**Navigation Architecture:**
+- IconRail: 56px vertical icon sidebar with Lucide icons (replaced horizontal nav)
+- TopBar: 48px route-based breadcrumb bar with action slot
+- SubNav: 180px vertical sub-nav for tabbed pages (Agents, Autorater, Classification)
+- Layout rewritten to `[IconRail] | [TopBar + Content]` pattern
+
+**Shared Component Upgrades:**
+- DataTable: slate-50 headers, indigo-50 hover/selected, shadow-xs container
+- StatusBadge: rounded-full pill, emerald/rose/amber/indigo palette
+- MetricsCard: white card with shadow-xs, slate-500 labels
+- PromptEditor/JsonEditor: light Monaco theme, rounded container, optional label
+- DiffViewer: rose/emerald diff colors, rounded container
+- TranscriptPicker: Lucide chevron icons, indigo tag chips
+- New Skeleton component for loading states
+
+**Page Updates (all pages):**
+- Color palette migration: gray→slate, blue→indigo, green→emerald, red→rose
+- Agents/Autorater/Classification: horizontal tabs replaced with SubNav
+- Settings: card wrapper with refined form styling
+- ChatPanel: indigo-600 user bubbles, slate-100 agent bubbles, rounded-2xl
+- All playground sub-components updated to new palette
+
+**Build Fix:**
+- Excluded test files from tsconfig.app.json to fix pre-existing production build error
+
 ## Current Status
-All 9 phases complete. The system is fully functional.
+All 10 phases complete. The system is fully functional with premium UI.
 
 ## Test Coverage
 - Backend: Full coverage of all routers and services via pytest
-- Frontend: Components (DataTable, DiffViewer, MetricsCard, StatusBadge, TranscriptPicker) and API layer tested
+- Frontend: Components (DataTable, DiffViewer, MetricsCard, StatusBadge, TranscriptPicker, IconRail, TopBar, SubNav, ChatPanel) and API layer tested (154 tests)
 
 ## Known Gaps / Future Work
 See docs/EVAL_FUTURE_WORK.md for planned evaluation improvements.

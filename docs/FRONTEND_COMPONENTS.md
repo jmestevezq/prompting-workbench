@@ -12,6 +12,9 @@
 | Zustand | 5.0 | Global state management |
 | @monaco-editor/react | 4.7 | Code/JSON/prompt editors |
 | react-markdown | 10.1 | Markdown rendering in chat |
+| Lucide React | latest | Icon library |
+| Inter Variable | latest | Primary sans-serif font |
+| JetBrains Mono Variable | latest | Monospace font for editors |
 | Vitest | 4.0 | Unit testing |
 | @testing-library/react | 16.3 | Component testing utilities |
 
@@ -124,15 +127,54 @@ Used by `Playground` (reads/writes all fields) and potentially other pages. Acti
 
 ---
 
-## Layout
+## Design System
+
+### `src/lib/theme.ts`
+
+Design tokens and Monaco editor theme definition:
+- **Color palette:** indigo primary (#6366f1), slate neutrals, emerald/rose/amber/violet semantics
+- **Monaco light theme:** custom `workbench-light` theme with indigo keywords, emerald strings, slate comments, white background
+- **Exported constants:** `colors`, `monacoLightTheme`, `MONACO_THEME_NAME`
+
+### `src/index.css`
+
+Imports Inter Variable and JetBrains Mono Variable fonts. Defines CSS custom properties:
+- `--font-sans` (Inter), `--font-mono` (JetBrains Mono)
+- Shadow scale: `--shadow-xs`, `--shadow-sm`, `--shadow-md`
+- Body: slate-800 text on slate-50 background
+
+---
+
+## Layout & Navigation
 
 ### `src/components/Layout.tsx`
 
-Outer shell rendered for all pages. Contains:
-- A top navigation bar with links to all five pages
-- The active nav item is highlighted (blue background)
-- An `<Outlet>` that renders the active page
-- Full-height layout (`h-screen`, `flex flex-col`)
+Outer shell rendered for all pages. Uses a horizontal layout:
+- **Left:** `<IconRail>` (56px vertical icon sidebar)
+- **Right:** `<TopBar>` + `<Outlet>` in a flex column
+- Full-height layout (`h-screen`, `flex flex-row`)
+
+### `src/components/IconRail.tsx`
+
+56px-wide vertical icon navigation rail using Lucide icons:
+- Brand mark "PW" in indigo-600 at top
+- 6 main nav icons: Playground (MessagesSquare), Agents (Bot), Profiles (Users), Autorater (ClipboardCheck), Generator (Sparkles), Classification (Tags)
+- Settings icon pinned to bottom
+- Active state: indigo-50 bg + indigo-600 icon; Inactive: slate-400, hover slate-600
+- CSS title-attribute tooltips
+
+### `src/components/TopBar.tsx`
+
+48px-height top bar with route-based breadcrumb title:
+- Maps routes to page names (`/playground` → "Playground", etc.)
+- Optional children slot for page-specific action buttons
+
+### `src/components/SubNav.tsx`
+
+180px-wide vertical sub-navigation for tabbed pages (Agents, Autorater, Classification):
+- Props: `items` (key, label, icon?, count?), `active`, `onChange`
+- Active item: left indigo-500 border + indigo-50 bg + indigo-700 text
+- Optional count badge with tabular-nums styling
 
 ---
 
@@ -148,17 +190,15 @@ A generic table component with:
 
 ### `src/components/JsonEditor.tsx`
 
-A Monaco Editor instance configured for JSON mode. Props:
-- `value` — current JSON string
-- `onChange` — called on every keystroke
-- `readOnly` — optional, disables editing
-- `height` — default `200px`
-
-Uses `@monaco-editor/react` which lazy-loads Monaco from CDN.
+A Monaco Editor instance configured for JSON mode with the custom `workbench-light` theme. Wrapped in a rounded border container with optional label header. Uses JetBrains Mono font.
 
 ### `src/components/PromptEditor.tsx`
 
-Similar to `JsonEditor` but configured for plain text / markdown editing. Used for system prompts and autorater prompt templates.
+Similar to `JsonEditor` but configured for plain text / markdown editing. Same light theme and container styling. Used for system prompts and autorater prompt templates.
+
+### `src/components/Skeleton.tsx`
+
+Simple loading skeleton component: `animate-pulse bg-slate-200 rounded`. Accepts optional `className` for sizing.
 
 ### `src/components/MetricsCard.tsx`
 
@@ -169,11 +209,12 @@ Displays evaluation metrics in a card layout:
 
 ### `src/components/StatusBadge.tsx`
 
-A small inline badge component for status values. Maps status strings to colors:
-- `completed` / `pass` → green
-- `failed` / `fail` → red
-- `running` → yellow/blue animated
-- `pending` → gray
+A pill-shaped (`rounded-full`) inline badge component for status values. Maps status strings to colors:
+- `completed` / `pass` → emerald-50/700
+- `failed` / `fail` → rose-50/700
+- `running` → indigo-50/700
+- `pending` → amber-50/700
+- Fallback → slate-100/600
 
 ### `src/components/DiffViewer.tsx`
 
