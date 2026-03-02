@@ -94,12 +94,36 @@ Premium developer-tool aesthetic (Linear/Vercel light mode style):
 **Build Fix:**
 - Excluded test files from tsconfig.app.json to fix pre-existing production build error
 
+## Phase 11: Navigation Refinements - COMPLETE
+
+**IconRail — collapsible/expandable:**
+- Collapsed (default, w-14): icons only with hover tooltips
+- Expanded (w-[200px]): icons + text labels, "PW Workbench" brand
+- Toggle button (ChevronsRight/ChevronsLeft) at bottom
+- State persisted to localStorage, smooth width transition
+
+**TabBar component (new):**
+- Horizontal tab bar with bottom-border active indicator
+- Same prop interface as SubNav (items, active, onChange)
+- Used by Agents and Autorater pages
+
+**Agents page restructured:**
+- Permanent left sidebar (w-80) with agent list + import controls
+- Horizontal TabBar for Overview/Template/Versions tabs in right content area
+- Overview tab is now agent detail only (no agent list)
+
+**Autorater page restructured:**
+- Replaced vertical SubNav with horizontal TabBar at top
+- Full-width content below tabs
+
+**Unchanged pages:** Classification (still uses SubNav), UserProfiles, Playground
+
 ## Current Status
-All 10 phases complete. The system is fully functional with premium UI.
+All 11 phases complete. The system is fully functional with premium UI and refined navigation.
 
 ## Test Coverage
 - Backend: Full coverage of all routers and services via pytest
-- Frontend: Components (DataTable, DiffViewer, MetricsCard, StatusBadge, TranscriptPicker, IconRail, TopBar, SubNav, ChatPanel) and API layer tested (154 tests)
+- Frontend: Components (DataTable, DiffViewer, MetricsCard, StatusBadge, TranscriptPicker, IconRail, TopBar, SubNav, TabBar, ChatPanel) and API layer tested (165 tests)
 
 ## Known Gaps / Future Work
 See docs/EVAL_FUTURE_WORK.md for planned evaluation improvements.

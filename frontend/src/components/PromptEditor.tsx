@@ -46,6 +46,10 @@ export default function PromptEditor({
           automaticLayout: true,
           padding: { top: 8 },
           renderLineHighlight: 'none',
+          quickSuggestions: false,
+          suggestOnTriggerCharacters: false,
+          wordBasedSuggestions: 'off',
+          parameterHints: { enabled: false },
         }}
         theme={MONACO_THEME_NAME}
       />

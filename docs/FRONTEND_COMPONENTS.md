@@ -156,12 +156,15 @@ Outer shell rendered for all pages. Uses a horizontal layout:
 
 ### `src/components/IconRail.tsx`
 
-56px-wide vertical icon navigation rail using Lucide icons:
-- Brand mark "PW" in indigo-600 at top
+Collapsible vertical icon navigation rail using Lucide icons:
+- **Collapsed** (default, 56px): Icons only with hover tooltips. Brand mark "PW".
+- **Expanded** (200px): Icons + text labels side by side. Brand mark "PW" + "Workbench" text.
+- Toggle button (ChevronsRight/ChevronsLeft) at bottom, below Settings
+- State persisted to `localStorage('iconRailCollapsed')`
+- Smooth width transition (`transition-all duration-200`)
 - 6 main nav icons: Playground (MessagesSquare), Agents (Bot), Profiles (Users), Autorater (ClipboardCheck), Generator (Sparkles), Classification (Tags)
 - Settings icon pinned to bottom
 - Active state: indigo-50 bg + indigo-600 icon; Inactive: slate-400, hover slate-600
-- CSS title-attribute tooltips
 
 ### `src/components/TopBar.tsx`
 
@@ -171,10 +174,19 @@ Outer shell rendered for all pages. Uses a horizontal layout:
 
 ### `src/components/SubNav.tsx`
 
-180px-wide vertical sub-navigation for tabbed pages (Agents, Autorater, Classification):
+180px-wide vertical sub-navigation for tabbed pages (Classification):
 - Props: `items` (key, label, icon?, count?), `active`, `onChange`
 - Active item: left indigo-500 border + indigo-50 bg + indigo-700 text
 - Optional count badge with tabular-nums styling
+
+### `src/components/TabBar.tsx`
+
+Horizontal tab bar component used by Agents and Autorater pages:
+- Props: `items` (key, label, icon?, count?), `active`, `onChange` — same interface as SubNav
+- Container: `border-b border-slate-200 bg-white px-4`
+- Active tab: `border-indigo-500 text-indigo-600` (bottom border)
+- Inactive tab: `border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300`
+- Optional 16px icon + label + count badge per tab
 
 ---
 
@@ -267,7 +279,7 @@ On rerun, old messages belonging to the rerun target (tool_call, tool_response, 
 
 ### `src/pages/Autorater.tsx` — Autorater Workbench
 
-Three-tab page:
+Three-tab page with horizontal TabBar at top, full-width content below:
 
 **Tab 1: Transcripts**
 - Loads all transcripts from `api.listTranscripts()`
@@ -311,12 +323,18 @@ Three-tab page (same structure as Autorater):
 
 ### `src/pages/Agents.tsx` — Agent Management
 
-Three-tab page for managing file-based and manually created agents:
+Two-panel layout with permanent left sidebar and horizontal TabBar:
+
+**Left sidebar (w-80, always visible):**
+- Agent list table (name, source badge)
+- Import section at bottom: folder dropdown + Import button
+
+**Right content area (TabBar: Overview | Template & Variables | Versions):**
 
 **Tab 1: Overview**
-- Lists all agents with name, model, folder, and source badge (file/ui)
-- Detail pane: shows agent metadata, "Re-import from Files" button (for file-based agents), Delete button
-- Import section: dropdown of available agent folders → "Import" triggers `POST /api/agents/import/{folder}`
+- Agent detail view: metadata (model, folder, active version, created date)
+- "Re-import from Files" button (for file-based agents), Delete button
+- Empty state when no agent selected
 
 **Tab 2: Template & Variables**
 - Loads the active version's raw `.ftl` template and variable definitions via `GET /api/agents/{id}/template`

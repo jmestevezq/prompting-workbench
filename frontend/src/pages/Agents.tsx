@@ -4,12 +4,12 @@ import type { Agent, AgentVersion, AgentTemplateResponse } from '../api/types'
 import DataTable from '../components/DataTable'
 import PromptEditor from '../components/PromptEditor'
 import StatusBadge from '../components/StatusBadge'
-import SubNav from '../components/SubNav'
+import TabBar from '../components/TabBar'
 import { LayoutList, FileCode2, GitBranch } from 'lucide-react'
 
 type Tab = 'overview' | 'template' | 'versions'
 
-const subNavItems = [
+const tabItems = [
   { key: 'overview', label: 'Overview', icon: LayoutList },
   { key: 'template', label: 'Template & Variables', icon: FileCode2 },
   { key: 'versions', label: 'Versions', icon: GitBranch },
@@ -19,6 +19,10 @@ export default function Agents() {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [agents, setAgents] = useState<Agent[]>([])
   const [selected, setSelected] = useState<Agent | null>(null)
+  const [folders, setFolders] = useState<string[]>([])
+  const [importFolder, setImportFolder] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importMsg, setImportMsg] = useState('')
 
   const loadAgents = async () => {
     const list = await api.listAgents()
@@ -31,53 +35,12 @@ export default function Agents() {
 
   useEffect(() => {
     loadAgents()
+    api.listAgentFolders().then(setFolders).catch(() => setFolders([]))
   }, [])
 
   const handleSelect = (a: Agent) => {
     setSelected(a)
   }
-
-  return (
-    <div className="h-full flex flex-row">
-      <SubNav items={subNavItems} active={activeTab} onChange={(key) => setActiveTab(key as Tab)} />
-      <div className="flex-1 overflow-auto">
-        {activeTab === 'overview' && (
-          <OverviewTab
-            agents={agents}
-            selected={selected}
-            onSelect={handleSelect}
-            onRefresh={loadAgents}
-          />
-        )}
-        {activeTab === 'template' && <TemplateTab agent={selected} />}
-        {activeTab === 'versions' && (
-          <VersionsTab agent={selected} onRefresh={loadAgents} />
-        )}
-      </div>
-    </div>
-  )
-}
-
-// --- Overview Tab ---
-function OverviewTab({
-  agents,
-  selected,
-  onSelect,
-  onRefresh,
-}: {
-  agents: Agent[]
-  selected: Agent | null
-  onSelect: (a: Agent) => void
-  onRefresh: () => Promise<void>
-}) {
-  const [folders, setFolders] = useState<string[]>([])
-  const [importFolder, setImportFolder] = useState('')
-  const [importing, setImporting] = useState(false)
-  const [importMsg, setImportMsg] = useState('')
-
-  useEffect(() => {
-    api.listAgentFolders().then(setFolders).catch(() => setFolders([]))
-  }, [])
 
   const handleImport = async (folder?: string) => {
     const target = folder || importFolder
@@ -87,7 +50,7 @@ function OverviewTab({
     try {
       const result = await api.importAgent(target)
       setImportMsg(result.message)
-      await onRefresh()
+      await loadAgents()
     } catch (e) {
       setImportMsg(e instanceof Error ? e.message : 'Import failed')
     } finally {
@@ -95,25 +58,8 @@ function OverviewTab({
     }
   }
 
-  const handleDelete = async () => {
-    if (!selected) return
-    try {
-      await api.deleteAgent(selected.id)
-      onSelect(null as unknown as Agent)
-      await onRefresh()
-    } catch (e) {
-      setImportMsg(e instanceof Error ? e.message : 'Delete failed')
-    }
-  }
-
-  const columns = [
+  const agentListColumns = [
     { key: 'name', header: 'Name' },
-    { key: 'model', header: 'Model' },
-    {
-      key: 'agent_folder',
-      header: 'Folder',
-      render: (r: Agent) => r.agent_folder || '-',
-    },
     {
       key: 'active_version_id',
       header: 'Source',
@@ -127,85 +73,32 @@ function OverviewTab({
   ]
 
   return (
-    <div className="h-full flex">
-      {/* Left — agent list */}
-      <div className="w-96 border-r border-slate-200 flex flex-col bg-white">
+    <div className="h-full flex flex-row">
+      {/* Permanent left sidebar — agent list + import */}
+      <div className="w-80 border-r border-slate-200 flex flex-col bg-white shrink-0">
         <div className="p-3 border-b border-slate-200">
           <h2 className="text-sm font-semibold text-slate-700">Agents</h2>
         </div>
         <div className="flex-1 overflow-auto">
           <DataTable
-            columns={columns}
+            columns={agentListColumns}
             data={agents}
-            onRowClick={onSelect}
+            onRowClick={handleSelect}
             emptyMessage="No agents"
           />
         </div>
-      </div>
-
-      {/* Right — detail + import */}
-      <div className="flex-1 p-6 overflow-auto">
-        {selected ? (
-          <div className="max-w-2xl space-y-4">
-            <h3 className="text-lg font-semibold text-slate-800">{selected.name}</h3>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <span className="text-slate-500">Model:</span>{' '}
-                <span className="font-medium">{selected.model}</span>
-              </div>
-              <div>
-                <span className="text-slate-500">Folder:</span>{' '}
-                <span className="font-medium">{selected.agent_folder || 'None'}</span>
-              </div>
-              <div>
-                <span className="text-slate-500">Active Version:</span>{' '}
-                <span className="font-medium">{selected.active_version_id ? 'Yes' : 'None'}</span>
-              </div>
-              <div>
-                <span className="text-slate-500">Created:</span>{' '}
-                <span className="font-medium">
-                  {new Date(selected.created_at).toLocaleDateString()}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              {selected.agent_folder && (
-                <button
-                  onClick={() => handleImport(selected.agent_folder!)}
-                  disabled={importing}
-                  className="px-3 py-1.5 text-sm font-medium bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  {importing ? 'Importing...' : 'Re-import from Files'}
-                </button>
-              )}
-              <button
-                onClick={handleDelete}
-                className="px-3 py-1.5 text-sm font-medium bg-rose-600 text-white rounded hover:bg-rose-700"
-              >
-                Delete Agent
-              </button>
-            </div>
-
-            {importMsg && (
-              <div className="text-sm text-slate-600 bg-slate-50 p-2 rounded">{importMsg}</div>
-            )}
-          </div>
-        ) : (
-          <div className="text-slate-400 text-sm mb-6">Select an agent to view details</div>
-        )}
 
         {/* Import section */}
-        <div className="mt-8 pt-6 border-t border-slate-200 max-w-2xl">
-          <h3 className="text-sm font-semibold text-slate-700 mb-3">Import Agent from Folder</h3>
+        <div className="p-3 border-t border-slate-200">
+          <h3 className="text-xs font-semibold text-slate-500 mb-2">Import from Folder</h3>
           {folders.length > 0 ? (
-            <div className="flex gap-2 items-center">
+            <div className="flex gap-1.5">
               <select
                 value={importFolder}
                 onChange={(e) => setImportFolder(e.target.value)}
-                className="border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
-                <option value="">Select folder...</option>
+                <option value="">Select...</option>
                 {folders.map((f) => (
                   <option key={f} value={f}>
                     {f}
@@ -215,19 +108,124 @@ function OverviewTab({
               <button
                 onClick={() => handleImport()}
                 disabled={importing || !importFolder}
-                className="px-3 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                className="px-2 py-1 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
               >
-                {importing ? 'Importing...' : 'Import'}
+                {importing ? '...' : 'Import'}
               </button>
             </div>
           ) : (
-            <div className="text-sm text-slate-400">No agent folders available</div>
+            <div className="text-xs text-slate-400">No agent folders available</div>
           )}
-          {importMsg && !selected && (
-            <div className="text-sm text-slate-600 bg-slate-50 p-2 rounded mt-2">{importMsg}</div>
+          {importMsg && (
+            <div className="text-xs text-slate-600 bg-slate-50 p-1.5 rounded mt-1.5">{importMsg}</div>
           )}
         </div>
       </div>
+
+      {/* Right content area — TabBar + tab content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <TabBar items={tabItems} active={activeTab} onChange={(key) => setActiveTab(key as Tab)} />
+        <div className="flex-1 overflow-auto">
+          {activeTab === 'overview' && (
+            <OverviewTab
+              agent={selected}
+              onImport={handleImport}
+              importing={importing}
+              importMsg={importMsg}
+              onRefresh={loadAgents}
+              onSelect={handleSelect}
+            />
+          )}
+          {activeTab === 'template' && <TemplateTab agent={selected} />}
+          {activeTab === 'versions' && (
+            <VersionsTab agent={selected} onRefresh={loadAgents} />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// --- Overview Tab (agent detail only) ---
+function OverviewTab({
+  agent,
+  onImport,
+  importing,
+  importMsg,
+  onRefresh,
+  onSelect,
+}: {
+  agent: Agent | null
+  onImport: (folder: string) => Promise<void>
+  importing: boolean
+  importMsg: string
+  onRefresh: () => Promise<void>
+  onSelect: (a: Agent) => void
+}) {
+  const handleDelete = async () => {
+    if (!agent) return
+    try {
+      await api.deleteAgent(agent.id)
+      onSelect(null as unknown as Agent)
+      await onRefresh()
+    } catch {
+      // handled silently
+    }
+  }
+
+  if (!agent) {
+    return (
+      <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+        Select an agent to view details
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-6 max-w-2xl space-y-4">
+      <h3 className="text-lg font-semibold text-slate-800">{agent.name}</h3>
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <span className="text-slate-500">Model:</span>{' '}
+          <span className="font-medium">{agent.model}</span>
+        </div>
+        <div>
+          <span className="text-slate-500">Folder:</span>{' '}
+          <span className="font-medium">{agent.agent_folder || 'None'}</span>
+        </div>
+        <div>
+          <span className="text-slate-500">Active Version:</span>{' '}
+          <span className="font-medium">{agent.active_version_id ? 'Yes' : 'None'}</span>
+        </div>
+        <div>
+          <span className="text-slate-500">Created:</span>{' '}
+          <span className="font-medium">
+            {new Date(agent.created_at).toLocaleDateString()}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex gap-2 pt-2">
+        {agent.agent_folder && (
+          <button
+            onClick={() => onImport(agent.agent_folder!)}
+            disabled={importing}
+            className="px-3 py-1.5 text-sm font-medium bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {importing ? 'Importing...' : 'Re-import from Files'}
+          </button>
+        )}
+        <button
+          onClick={handleDelete}
+          className="px-3 py-1.5 text-sm font-medium bg-rose-600 text-white rounded hover:bg-rose-700"
+        >
+          Delete Agent
+        </button>
+      </div>
+
+      {importMsg && (
+        <div className="text-sm text-slate-600 bg-slate-50 p-2 rounded">{importMsg}</div>
+      )}
     </div>
   )
 }
@@ -253,7 +251,7 @@ function TemplateTab({ agent }: { agent: Agent | null }) {
   }, [agent?.id, agent?.active_version_id])
 
   if (!agent) {
-    return <div className="p-6 text-slate-400 text-sm">Select an agent in the Overview tab</div>
+    return <div className="p-6 text-slate-400 text-sm">Select an agent to view template</div>
   }
 
   if (!agent.active_version_id) {
@@ -439,7 +437,7 @@ function VersionsTab({
   }
 
   if (!agent) {
-    return <div className="p-6 text-slate-400 text-sm">Select an agent in the Overview tab</div>
+    return <div className="p-6 text-slate-400 text-sm">Select an agent to view versions</div>
   }
 
   const columns = [

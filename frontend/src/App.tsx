@@ -4,7 +4,6 @@ import Playground from './pages/Playground'
 import Agents from './pages/Agents'
 import UserProfiles from './pages/UserProfiles'
 import Autorater from './pages/Autorater'
-import Generator from './pages/Generator'
 import Classification from './pages/Classification'
 import Settings from './pages/Settings'
 
@@ -18,7 +17,6 @@ export default function App() {
           <Route path="agents" element={<Agents />} />
           <Route path="profiles" element={<UserProfiles />} />
           <Route path="autorater" element={<Autorater />} />
-          <Route path="generator" element={<Generator />} />
           <Route path="classification" element={<Classification />} />
           <Route path="settings" element={<Settings />} />
         </Route>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { api } from '../api/client'
 import type { Transcript, Autorater as AutoraterType, EvalRun, EvalResult } from '../api/types'
 import DataTable from '../components/DataTable'
@@ -7,27 +7,31 @@ import StatusBadge from '../components/StatusBadge'
 import PromptEditor from '../components/PromptEditor'
 import JsonEditor from '../components/JsonEditor'
 import TranscriptPicker from '../components/TranscriptPicker'
-import SubNav from '../components/SubNav'
-import { FileText, Bot, Play } from 'lucide-react'
+import TagEditor from '../components/TagEditor'
+import TabBar from '../components/TabBar'
+import Generator from './Generator'
+import { FileText, Bot, Play, Sparkles } from 'lucide-react'
 
-type Tab = 'transcripts' | 'autoraters' | 'eval-runs'
+type Tab = 'transcripts' | 'autoraters' | 'eval-runs' | 'generator'
 
-const subNavItems = [
+const tabItems = [
   { key: 'transcripts', label: 'Transcripts', icon: FileText },
   { key: 'autoraters', label: 'Autoraters', icon: Bot },
   { key: 'eval-runs', label: 'Eval Runs', icon: Play },
+  { key: 'generator', label: 'Generator', icon: Sparkles },
 ]
 
 export default function Autorater() {
   const [activeTab, setActiveTab] = useState<Tab>('transcripts')
 
   return (
-    <div className="h-full flex flex-row">
-      <SubNav items={subNavItems} active={activeTab} onChange={(key) => setActiveTab(key as Tab)} />
+    <div className="h-full flex flex-col">
+      <TabBar items={tabItems} active={activeTab} onChange={(key) => setActiveTab(key as Tab)} />
       <div className="flex-1 overflow-auto">
         {activeTab === 'transcripts' && <TranscriptsTab />}
         {activeTab === 'autoraters' && <AutoratersTab />}
         {activeTab === 'eval-runs' && <EvalRunsTab />}
+        {activeTab === 'generator' && <Generator />}
       </div>
     </div>
   )
@@ -40,16 +44,25 @@ function TranscriptsTab() {
   const [tagFilter, setTagFilter] = useState('')
   const [showImport, setShowImport] = useState(false)
   const [importJson, setImportJson] = useState('')
-  const [editingTags, setEditingTags] = useState('')
+  const [editingTags, setEditingTags] = useState<string[]>([])
   const [editingLabels, setEditingLabels] = useState<Record<string, string>>({})
 
   useEffect(() => {
     api.listTranscripts(tagFilter || undefined).then(setTranscripts)
   }, [tagFilter])
 
+  // Collect all known tags for autocomplete suggestions
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>()
+    for (const t of transcripts) {
+      if (t.tags) t.tags.forEach((tag) => tagSet.add(tag))
+    }
+    return Array.from(tagSet).sort()
+  }, [transcripts])
+
   const handleSelect = (t: Transcript) => {
     setSelected(t)
-    setEditingTags((t.tags ?? []).join(', '))
+    setEditingTags(t.tags ?? [])
     setEditingLabels(t.labels ?? {})
   }
 
@@ -68,18 +81,15 @@ function TranscriptsTab() {
 
   const handleSaveTags = async () => {
     if (!selected) return
-    const tags = editingTags
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean)
     // Only keep labels for tags that still exist on the transcript
     const cleanedLabels: Record<string, string> = {}
-    for (const tag of tags) {
+    for (const tag of editingTags) {
       if (editingLabels[tag]) cleanedLabels[tag] = editingLabels[tag]
     }
-    const updated = await api.updateTranscript(selected.id, { tags, labels: cleanedLabels })
+    const updated = await api.updateTranscript(selected.id, { tags: editingTags, labels: cleanedLabels })
     setTranscripts((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
     setSelected(updated)
+    setEditingTags(updated.tags ?? [])
     setEditingLabels(updated.labels ?? {})
   }
 
@@ -151,36 +161,18 @@ function TranscriptsTab() {
           </pre>
 
           <div className="mb-3">
-            <label className="text-xs font-medium text-slate-500 block mb-1">Tags (comma-separated)</label>
-            <div className="flex gap-1">
-              <input
-                value={editingTags}
-                onChange={(e) => setEditingTags(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveTags() }}
-                placeholder="polite, accurate, refund..."
-                className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs"
-              />
-              <button
-                onClick={handleSaveTags}
-                className="bg-indigo-600 text-white px-2 py-1 rounded text-xs"
-              >
-                Save
-              </button>
-            </div>
-            {(selected.tags ?? []).length > 0 && (
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {selected.tags!.map((tag) => {
-                  const label = editingLabels[tag]
-                  return (
-                    <span key={tag} className={`inline-block text-xs rounded px-1.5 py-0.5 ${
-                      label === 'P' ? 'bg-emerald-50 text-emerald-700' :
-                      label === 'N' ? 'bg-rose-50 text-rose-700' :
-                      'bg-indigo-50 text-indigo-600'
-                    }`}>{tag}{label ? ` (${label})` : ''}</span>
-                  )
-                })}
-              </div>
-            )}
+            <label className="text-xs font-medium text-slate-500 block mb-1">Tags</label>
+            <TagEditor
+              tags={editingTags}
+              onChange={setEditingTags}
+              suggestions={allTags}
+            />
+            <button
+              onClick={handleSaveTags}
+              className="bg-indigo-600 text-white px-2 py-1 rounded text-xs mt-2"
+            >
+              Save
+            </button>
           </div>
 
           {(selected.tags ?? []).length > 0 && (
