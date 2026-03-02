@@ -17,6 +17,7 @@ from google.genai import types
 from app.database import get_db
 from app.services import gemini_client
 from app.services.mock_tools import execute_tool
+from app.services.log_service import dev_log
 
 
 def _expand_db_turn(row) -> list[dict]:
@@ -204,6 +205,11 @@ async def run_agent_turn(
         yield {"type": "error", "message": "Session not loaded"}
         return
 
+    dev_log("TOOL", "info", f"Agent turn start — session={state.session_id[:8]}", {
+        "agent": state.agent_config.get("name"),
+        "user_message": user_message[:80] if user_message else None,
+    })
+
     system_prompt = system_prompt_override or state.agent_config["system_prompt"]
     model = state.agent_config["model"]
     tool_defs = state.agent_config["tool_definitions"]
@@ -256,6 +262,7 @@ async def run_agent_turn(
                 tools=tools,
             )
         except Exception as e:
+            dev_log("ERR", "error", f"Gemini API error: {str(e)}")
             yield {"type": "error", "message": f"Gemini API error: {str(e)}"}
             return
 
@@ -276,6 +283,7 @@ async def run_agent_turn(
                     args=fc["args"],
                 ))
                 all_tool_calls.append(fc)
+                dev_log("TOOL", "info", f"Tool call → {fc['name']}", {"args": fc["args"]})
                 yield {"type": "tool_call", "tool_name": fc["name"], "arguments": fc["args"]}
 
             contents.append(types.Content(role="model", parts=fc_parts))
@@ -296,6 +304,9 @@ async def run_agent_turn(
             fr_parts = []
             for fc, tool_result in zip(result["function_calls"], tool_results):
                 all_tool_responses.append({"name": fc["name"], "response": tool_result})
+                dev_log("TOOL", "info", f"Tool response ← {fc['name']}", {
+                    "result_type": type(tool_result).__name__,
+                })
                 yield {"type": "tool_response", "tool_name": fc["name"], "result": tool_result}
 
                 resp = tool_result if isinstance(tool_result, dict) else {"result": tool_result}

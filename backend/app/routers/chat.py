@@ -4,6 +4,7 @@ import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.services.agent_runtime import SessionState, run_agent_turn, rerun_turn
+from app.services.log_service import dev_log
 
 router = APIRouter()
 
@@ -14,6 +15,7 @@ active_sessions: dict[str, SessionState] = {}
 @router.websocket("/ws/chat/{session_id}")
 async def chat_websocket(websocket: WebSocket, session_id: str):
     await websocket.accept()
+    dev_log("WS", "info", f"WS connected — session={session_id[:8]}")
 
     # Get or create session state
     if session_id not in active_sessions:
@@ -21,6 +23,7 @@ async def chat_websocket(websocket: WebSocket, session_id: str):
         try:
             await state.load()
         except Exception as e:
+            dev_log("ERR", "error", f"Session load failed: {e}")
             await websocket.send_json({"type": "error", "message": str(e)})
             await websocket.close()
             return
@@ -38,6 +41,7 @@ async def chat_websocket(websocket: WebSocket, session_id: str):
                 continue
 
             msg_type = message.get("type")
+            dev_log("WS", "info", f"WS message → {msg_type}", {"session": session_id[:8]})
 
             if msg_type == "user_message":
                 content = message.get("content", "").strip()
@@ -89,6 +93,7 @@ async def chat_websocket(websocket: WebSocket, session_id: str):
     except WebSocketDisconnect:
         # Clean up session state on disconnect
         active_sessions.pop(session_id, None)
+        dev_log("WS", "info", f"WS disconnected — session={session_id[:8]}")
 
 
 def _serialize_event(event: dict) -> dict:

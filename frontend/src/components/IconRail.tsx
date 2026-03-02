@@ -6,6 +6,7 @@ import {
   Users,
   ClipboardCheck,
   Tags,
+  Terminal,
   Settings,
   ChevronsRight,
   ChevronsLeft,
@@ -27,6 +28,7 @@ const topItems: NavItem[] = [
 ]
 
 const bottomItems: NavItem[] = [
+  { to: '/devlogs', icon: Terminal, label: 'Dev Logs' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 

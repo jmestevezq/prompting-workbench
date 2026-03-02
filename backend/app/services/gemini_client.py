@@ -13,6 +13,7 @@ from google import genai
 from google.genai import types
 
 from app.config import settings
+from app.services.log_service import dev_log
 
 
 def get_client() -> genai.Client:
@@ -120,6 +121,8 @@ async def generate(
         "tools": _serialize_tool(tools) if tools else None,
     }
 
+    dev_log("GEMINI", "info", f"API call → {model}", {"turns": len(contents)})
+
     # Use async API to avoid blocking the event loop (matches ADK)
     response = await client.aio.models.generate_content(
         model=model,
@@ -150,6 +153,13 @@ async def generate(
         }
 
     raw_response = _serialize_response(response)
+
+    fc_names = [fc["name"] for fc in function_calls] if function_calls else []
+    dev_log("GEMINI", "info", f"API response ← {model}", {
+        "function_calls": fc_names,
+        "has_text": bool(text_parts),
+        "token_usage": token_usage,
+    })
 
     return {
         "response": response,

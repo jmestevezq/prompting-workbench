@@ -13,18 +13,33 @@ import type {
   PromptVersion,
   AgentVersion, AgentVersionCreate, AgentImportResponse, AgentTemplateResponse,
 } from './types'
+import { devLog } from '../lib/devlog'
 
 const BASE = '/api'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  })
+  const method = options?.method ?? 'GET'
+  devLog('API_OUT', 'info', `${method} ${path}`)
+
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+    })
+  } catch (err) {
+    devLog('API_ERR', 'error', `${method} ${path} — network error`, { error: String(err) })
+    throw err
+  }
+
   if (!res.ok) {
     const text = await res.text()
+    devLog('API_ERR', 'warn', `${res.status} ${method} ${path}`, { body: text.slice(0, 200) })
     throw new Error(`${res.status}: ${text}`)
   }
+
+  devLog('API_IN', 'info', `${res.status} ${method} ${path}`)
+
   if (res.status === 204) return undefined as T
   return res.json()
 }
