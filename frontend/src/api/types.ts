@@ -111,6 +111,23 @@ export interface FixtureCreate {
   data: unknown
 }
 
+export interface GenerateTransactionsRequest {
+  prompt: string
+  start_date: string
+  end_date: string
+  profile_data?: unknown
+}
+
+export interface GenerateProfileResponse {
+  name: string
+  data: unknown
+}
+
+export interface GenerateTransactionsResponse {
+  transactions: unknown[]
+  count: number
+}
+
 // --- Sessions ---
 export interface Session {
   id: string

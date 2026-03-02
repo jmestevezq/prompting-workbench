@@ -6,6 +6,14 @@ import JsonEditor from '../components/JsonEditor'
 
 const todayStr = () => new Date().toISOString().split('T')[0]
 
+const defaultTxPrompt = () => {
+  const end = new Date()
+  const start = new Date()
+  start.setMonth(start.getMonth() - 3)
+  const fmt = (d: Date) => d.toISOString().split('T')[0]
+  return `Generate transactions between ${fmt(start)} and ${fmt(end)} for several categories, at least 20 per week, 4 different categories, include salary, flat rent transactions and P2P. Rupee transactions only.`
+}
+
 export default function UserProfiles() {
   const [profiles, setProfiles] = useState<Fixture[]>([])
   const [transactions, setTransactions] = useState<Fixture[]>([])
@@ -18,6 +26,9 @@ export default function UserProfiles() {
   const [txJsonData, setTxJsonData] = useState('[]')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [generatingProfile, setGeneratingProfile] = useState(false)
+  const [txPrompt, setTxPrompt] = useState('')
+  const [generatingTx, setGeneratingTx] = useState(false)
 
   const loadFixtures = async () => {
     const fixtures = await api.listFixtures()
@@ -34,6 +45,7 @@ export default function UserProfiles() {
     setCreating(false)
     setName(p.name)
     setError('')
+    setTxPrompt('')
 
     // Extract currentDate from profile data, default to today
     const data = p.data as Record<string, unknown>
@@ -50,16 +62,61 @@ export default function UserProfiles() {
     setTxJsonData(tx ? JSON.stringify(tx.data, null, 2) : '[]')
   }
 
-  const handleNew = () => {
+  const handleNew = async () => {
     setSelected(null)
     setCreating(true)
-    setName('')
+    setError('')
+    setGeneratingProfile(true)
+    setName('Generating...')
     setSimulationDate(todayStr())
     setJsonData('{}')
+    setTxJsonData('[]')
+    setSelectedTx(null)
+    setTxPrompt(defaultTxPrompt())
+
+    try {
+      const result = await api.generateProfile()
+      setName(result.name)
+      const data = result.data as Record<string, unknown>
+      const { currentDate: _, ...rest } = data || {}
+      setJsonData(JSON.stringify(rest, null, 2))
+    } catch (e) {
+      setName('')
+      setJsonData('{}')
+      setError(e instanceof Error ? `Profile generation failed: ${e.message}` : 'Profile generation failed')
+    } finally {
+      setGeneratingProfile(false)
+    }
+  }
+
+  const handleGenerateTx = async () => {
     setError('')
-    const tx = transactions.length > 0 ? transactions[0] : null
-    setSelectedTx(tx)
-    setTxJsonData(tx ? JSON.stringify(tx.data, null, 2) : '[]')
+    setGeneratingTx(true)
+    try {
+      const end = new Date()
+      const start = new Date()
+      start.setMonth(start.getMonth() - 3)
+      const fmt = (d: Date) => d.toISOString().split('T')[0]
+
+      let profileData: unknown = undefined
+      try {
+        profileData = JSON.parse(jsonData)
+      } catch {
+        // profile context is optional
+      }
+
+      const result = await api.generateTransactions({
+        prompt: txPrompt,
+        start_date: fmt(start),
+        end_date: fmt(end),
+        profile_data: profileData,
+      })
+      setTxJsonData(JSON.stringify(result.transactions, null, 2))
+    } catch (e) {
+      setError(e instanceof Error ? `Transaction generation failed: ${e.message}` : 'Transaction generation failed')
+    } finally {
+      setGeneratingTx(false)
+    }
   }
 
   const handleSave = async () => {
@@ -136,9 +193,10 @@ export default function UserProfiles() {
           <h2 className="text-sm font-semibold text-slate-700">User Profiles</h2>
           <button
             onClick={handleNew}
-            className="px-3 py-1 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700"
+            disabled={generatingProfile}
+            className="px-3 py-1 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
           >
-            New Profile
+            {generatingProfile ? 'Generating...' : 'New Profile'}
           </button>
         </div>
         <div className="flex-1 overflow-auto">
@@ -156,7 +214,14 @@ export default function UserProfiles() {
         {!selected && !creating ? (
           <div className="text-slate-400 text-sm">Select a profile or create a new one</div>
         ) : (
-          <div className="max-w-2xl space-y-4">
+          <div className="max-w-4xl space-y-4">
+            {generatingProfile && (
+              <div className="flex items-center gap-3 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                <div className="h-5 w-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm text-indigo-700 font-medium">Generating random user profile with Gemini...</span>
+              </div>
+            )}
+
             <div className="flex gap-4">
               <div className="flex-1">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
@@ -191,7 +256,45 @@ export default function UserProfiles() {
                   <span className="ml-2 text-xs text-slate-400">No transactions fixture — will be created on save</span>
                 )}
               </label>
-              <JsonEditor value={txJsonData} onChange={setTxJsonData} height="300px" />
+              <div className="flex gap-4">
+                {/* Left: transaction JSON editor */}
+                <div className="flex-1">
+                  <JsonEditor value={txJsonData} onChange={setTxJsonData} height="300px" />
+                </div>
+
+                {/* Right: generate transactions panel */}
+                {creating && (
+                  <div className="w-80 flex flex-col border border-slate-200 rounded-lg p-3 bg-slate-50">
+                    <h3 className="text-sm font-semibold text-slate-700 mb-2">Generate Transactions</h3>
+                    <textarea
+                      value={txPrompt}
+                      onChange={(e) => setTxPrompt(e.target.value)}
+                      rows={8}
+                      className="w-full border border-slate-300 rounded px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none mb-3"
+                      placeholder="Describe what transactions to generate..."
+                    />
+                    <button
+                      onClick={handleGenerateTx}
+                      disabled={generatingTx || !txPrompt.trim()}
+                      className="w-full px-3 py-2 text-sm font-medium bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {generatingTx ? (
+                        <>
+                          <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        'Generate'
+                      )}
+                    </button>
+                    {generatingTx && (
+                      <p className="mt-2 text-xs text-slate-500 text-center">
+                        This may take 15-30 seconds...
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {error && <div className="text-rose-600 text-sm">{error}</div>}

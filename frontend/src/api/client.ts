@@ -1,6 +1,7 @@
 import type {
   Agent, AgentCreate, AgentUpdate,
   Fixture, FixtureCreate,
+  GenerateTransactionsRequest, GenerateProfileResponse, GenerateTransactionsResponse,
   Session, SessionCreate, Turn,
   Transcript, TranscriptCreate,
   Autorater, AutoraterCreate,
@@ -56,6 +57,9 @@ export const api = {
   getFixture: (id: string) => request<Fixture>(`/fixtures/${id}`),
   updateFixture: (id: string, data: Partial<FixtureCreate>) => request<Fixture>(`/fixtures/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteFixture: (id: string) => request<void>(`/fixtures/${id}`, { method: 'DELETE' }),
+  generateProfile: () => request<GenerateProfileResponse>('/fixtures/generate-profile', { method: 'POST' }),
+  generateTransactions: (data: GenerateTransactionsRequest) =>
+    request<GenerateTransactionsResponse>('/fixtures/generate-transactions', { method: 'POST', body: JSON.stringify(data) }),
 
   // Sessions
   listSessions: () => request<Session[]>('/sessions'),
