@@ -54,8 +54,14 @@
 - Comprehensive test coverage: all backend services and API endpoints
 - Architecture docs: BACKEND_COMPONENTS.md, FRONTEND_COMPONENTS.md, SYSTEM_OVERVIEW.md
 
+## Phase 9: Playground Rerun & Debug Improvements - COMPLETE
+- **Rerun message cleanup:** `handleRerun` now removes old tool_call/tool_response/agent messages before rerunning, so the chat shows only the fresh results
+- **Auto-select new turn:** `turn_complete` handler auto-selects the new turn in the DebugPanel, so the debug inspector immediately shows fresh raw request/response data
+- **Lock responses toggle:** New "Lock responses" checkbox in DebugPanel edit mode. When enabled, the original (or edited) tool responses are injected directly into conversation history and Gemini is called without tool declarations — it can only produce text, no new tool calls. This allows testing how Gemini interprets specific tool data without re-executing tools.
+- **Simulation date in Playground:** Date picker in the AgentConfigPanel Fixtures section that reads/writes `currentDate` from the user_profile fixture. Syncs to the agent runtime's system prompt injection.
+
 ## Current Status
-All 8 phases complete. The system is fully functional.
+All 9 phases complete. The system is fully functional.
 
 ## Test Coverage
 - Backend: Full coverage of all routers and services via pytest

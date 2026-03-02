@@ -254,24 +254,34 @@ In-memory state for one active chat session:
 
 `load()` reads all data from DB. `swap_fixtures(new_ids)` updates DB and reloads fixture data into memory.
 
-**`run_agent_turn(state, user_message=None, ...)`** — `AsyncGenerator`
+**`run_agent_turn(state, user_message=None, ..., skip_tool_calls=False)`** — `AsyncGenerator`
 
 The main agent loop, yielding events for streaming:
 
 1. Optionally saves the user turn to DB
 2. Builds `contents` from conversation history via `gemini_client.build_contents()`
-3. Loops up to `max_iterations=10`:
+3. If `skip_tool_calls=True`, tool declarations are omitted from the Gemini request — Gemini can only respond with text (used by "Lock responses" rerun mode)
+4. Loops up to `max_iterations=10`:
    - Calls `gemini_client.generate()`
    - If response contains `function_calls`: executes all tools in parallel via `asyncio.gather()` (one executor task per tool), groups them into ADK-style batched Content objects, continues loop
    - If response contains text: simulates streaming by yielding 3-word chunks
-4. Saves the agent turn to DB with all debug data
-5. Yields `turn_complete` with the full turn object
+5. Saves the agent turn to DB with all debug data
+6. Yields `turn_complete` with the full turn object
 
 Tool calls are executed via `_execute_tool_call()`, which checks overrides first (per-call override → session-level override → mock tool execution).
 
 **`rerun_turn(state, turn_id, overrides)`** — `AsyncGenerator`
 
-Loads the turn at `turn_id`, marks it and all subsequent turns as `is_active=0`, rebuilds history up to that point, then delegates to `run_agent_turn()` with the provided overrides (system_prompt, tool_responses, modified_history).
+Loads the turn at `turn_id`, marks it and all subsequent turns as `is_active=0`, rebuilds history up to that point, then delegates to `run_agent_turn()` with the provided overrides.
+
+Supported overrides:
+
+| Override | Type | Effect |
+|---|---|---|
+| `system_prompt` | `string` | Replaces the agent's system prompt for this rerun |
+| `tool_responses` | `dict<name, data>` | Overrides specific tool responses (matched by tool name) |
+| `skip_tool_calls` | `bool` | **Lock responses mode.** When `true`, the original turn's tool call/response pairs (with any `tool_responses` edits applied) are injected directly into the conversation history, and `run_agent_turn` is called with `skip_tool_calls=true` — which omits tool declarations from the Gemini request so it can only generate text, not new tool calls. |
+| `modified_history` | `list[dict]` | Custom conversation history (defaults to DB-rebuilt history) |
 
 ---
 

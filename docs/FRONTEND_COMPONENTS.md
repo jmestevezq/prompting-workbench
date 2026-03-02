@@ -216,8 +216,11 @@ The most complex page. Orchestrates:
 - `agent_chunk` → appends to last streaming message, or creates new one
 - `tool_call` → adds a `tool_call` message
 - `tool_response` → adds a `tool_response` message
-- `turn_complete` → marks the streaming message as complete, attaches turn debug data
+- `turn_complete` → marks the streaming message as complete, attaches turn debug data, auto-selects the new turn in the DebugPanel
 - `error` → adds a system error message
+
+**Rerun behavior (`handleRerun`):**
+On rerun, old messages belonging to the rerun target (tool_call, tool_response, and agent messages) are removed from the chat before the new results stream in. The DebugPanel's `selectedTurn` is cleared and auto-set to the new turn on `turn_complete`.
 
 **Layout:** Three-column grid (280px | 1fr | 340px)
 
@@ -367,4 +370,5 @@ Right column. Displays data for the selected turn in tabs:
 When a turn is selected, shows an "Edit & Rerun" section where the user can:
 - Modify the system prompt override
 - Modify individual tool response overrides
-- Click "Rerun" → sends `rerun_turn` WebSocket message
+- Toggle **"Lock responses"** — when enabled, the rerun injects the current (or edited) tool responses directly into the conversation history and calls Gemini without tool declarations, so it can only produce text. This allows testing how Gemini interprets specific tool data without re-executing tools or allowing new tool calls.
+- Click "Rerun" → sends `rerun_turn` WebSocket message (with `skip_tool_calls: true` when locked)

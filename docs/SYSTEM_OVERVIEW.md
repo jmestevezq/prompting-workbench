@@ -163,7 +163,7 @@ Real-time bidirectional channel for the agent playground. Client sends:
 | Message | Purpose |
 |---|---|
 | `user_message` | Send a chat message to the agent |
-| `rerun_turn` | Rerun a past turn with overrides |
+| `rerun_turn` | Rerun a past turn with overrides (supports `skip_tool_calls` for locked responses) |
 | `swap_fixture` | Replace active data fixtures |
 | `set_tool_override` | Inject a specific tool response |
 | `clear_tool_overrides` | Remove all tool overrides |
