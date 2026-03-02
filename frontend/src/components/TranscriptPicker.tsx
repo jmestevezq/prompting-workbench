@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { Transcript } from '../api/types'
 import DataTable from './DataTable'
 import StatusBadge from './StatusBadge'
+import TagBadge from './TagBadge'
 
 interface TranscriptPickerProps {
   transcripts: Transcript[]
@@ -95,11 +96,14 @@ export default function TranscriptPicker({
                   header: 'Tags',
                   render: (r) => {
                     const t = r as Transcript
-                    return (t.tags ?? []).map((tag) => (
-                      <span key={tag} className="inline-block mr-1 text-xs bg-indigo-50 text-indigo-700 rounded-full px-2 py-0.5 font-medium">
-                        {tag}
-                      </span>
-                    ))
+                    const labels = t.labels ?? {}
+                    return (
+                      <div className="flex flex-wrap gap-1">
+                        {(t.tags ?? []).map((tag) => (
+                          <TagBadge key={tag} tag={tag} label={labels[tag]} />
+                        ))}
+                      </div>
+                    )
                   },
                 },
               ]}
