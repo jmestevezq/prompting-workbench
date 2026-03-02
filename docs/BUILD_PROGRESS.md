@@ -168,15 +168,42 @@ Premium developer-tool aesthetic (Linear/Vercel light mode style):
 - Backend: 22 tests (5 profile validation, 8 transaction validation, 2 generate_profile mocked, 3 generate_transactions mocked, 4 endpoint tests)
 - Frontend: 6 tests for UserProfiles page (render, generation indicator, form population, error handling, transaction panel, button state)
 
+## Phase 14: Developer Log Console - COMPLETE
+
+Terminal-style real-time log viewer (`/devlogs`) with backend SSE stream and frontend event capture.
+
+**Backend:**
+- `log_service.py`: Singleton with ring buffer (max 1000), subscriber queues for SSE, `dev_log()` convenience function
+- `routers/devlogs.py`: `GET /api/devlogs/stream` SSE endpoint — replays buffer history then streams live entries
+- `main.py`: HTTP logging middleware (REQ/RES for all endpoints, skips devlogs stream to avoid recursion), devlogs router
+- Instrumentation added: gemini_client.py (GEMINI calls), agent_runtime.py (turn start, tool calls/responses, errors), chat.py (WS connect/disconnect/messages)
+
+**Frontend:**
+- `lib/devlog.ts`: Module-level buffer (max 500), listener pattern, `devLog()` / `onDevLog()` / `getDevLogHistory()`
+- `store/devLogStore.ts`: Zustand store with entries, filters (source/level/category/search), isPaused, isConnected; `selectFilteredEntries()` selector
+- `hooks/useBackendLogs.ts`: EventSource hook consuming SSE stream, feeds into devLogStore with `source: 'backend'`
+- `components/Layout.tsx`: DevLogBridge component mounts useBackendLogs + subscribes frontend devlog events to store
+- `api/client.ts`: devLog calls for API_OUT/API_IN/API_ERR on every request
+- `api/websocket.ts`: devLog calls for WS_OUT/WS_IN/WS_ERR on connect/send/receive/close
+- `pages/DevLogs.tsx`: Terminal-style UI (dark bg-slate-900), filter bar, auto-scroll, status bar with SSE connection status
+- `components/LogEntry.tsx`: Memoized log line with timestamp, colored category badge, expandable JSON details
+- Navigation: Terminal icon in IconRail bottomItems, 'Developer Console' in TopBar, `/devlogs` route in App.tsx
+
+**Category colors:** indigo (API_OUT/REQ), emerald (API_IN/RES), rose (API_ERR/ERR/WS_ERR), violet (WS_OUT/GEMINI/WS), teal (WS_IN), cyan (TOOL), amber (DB/STATE)
+
+**Tests:**
+- Backend: 16 new tests (9 log_service unit tests, 7 devlogs_api tests)
+- Frontend: 39 new tests (9 devlog.ts, 13 devLogStore, 6 LogEntry, 11 DevLogs page)
+
 ## Current Status
-All 13 phases complete. The system is fully functional with AI-powered fixture generation for rapid test data creation.
+All 14 phases complete. The system includes a real-time Developer Log Console for debugging prompt iterations.
 
 ## Test Coverage
-- Backend: 434 tests via pytest (full coverage of all routers and services)
-- Frontend: 171 tests via vitest (components + UserProfiles page)
+- Backend: ~450 tests via pytest (all routers and services; eval run tests require Gemini API key)
+- Frontend: 210 tests via vitest (components, pages, lib modules, stores)
 
 ## Known Gaps / Future Work
 See docs/EVAL_FUTURE_WORK.md for planned evaluation improvements.
 
 Frontend page-level tests (Agents, Playground pages) are not yet written — these
-require more complex mocking of the API layer and WebSocket. UserProfiles page now has tests.
+require more complex mocking of the API layer and WebSocket. UserProfiles and DevLogs pages have tests.

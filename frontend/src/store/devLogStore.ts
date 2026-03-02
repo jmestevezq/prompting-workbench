@@ -13,12 +13,15 @@ interface DevLogState {
   filters: DevLogFilters
   isPaused: boolean
   isConnected: boolean
+  isPanelOpen: boolean
 
   addEntry: (entry: DevLogEntry) => void
   clearLogs: () => void
   setFilter: <K extends keyof DevLogFilters>(key: K, value: DevLogFilters[K]) => void
   togglePause: () => void
   setConnected: (connected: boolean) => void
+  togglePanel: () => void
+  openPanel: () => void
 }
 
 const MAX_ENTRIES = 500
@@ -33,6 +36,7 @@ export const useDevLogStore = create<DevLogState>((set) => ({
   },
   isPaused: false,
   isConnected: false,
+  isPanelOpen: false,
 
   addEntry: (entry) =>
     set((state) => {
@@ -49,6 +53,10 @@ export const useDevLogStore = create<DevLogState>((set) => ({
   togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
 
   setConnected: (connected) => set({ isConnected: connected }),
+
+  togglePanel: () => set((state) => ({ isPanelOpen: !state.isPanelOpen })),
+
+  openPanel: () => set({ isPanelOpen: true }),
 }))
 
 /** Derive filtered entries from current store state. */

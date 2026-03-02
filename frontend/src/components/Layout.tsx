@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import IconRail from './IconRail'
 import TopBar from './TopBar'
+import DevLogsPanel from './DevLogsPanel'
 import { useBackendLogs } from '../hooks/useBackendLogs'
 import { onDevLog } from '../lib/devlog'
 import { useDevLogStore } from '../store/devLogStore'
@@ -30,6 +31,7 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+      <DevLogsPanel />
     </div>
   )
 }
