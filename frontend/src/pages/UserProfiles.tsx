@@ -214,7 +214,7 @@ export default function UserProfiles() {
         {!selected && !creating ? (
           <div className="text-slate-400 text-sm">Select a profile or create a new one</div>
         ) : (
-          <div className="max-w-4xl space-y-4">
+          <div className="max-w-2xl space-y-4">
             {generatingProfile && (
               <div className="flex items-center gap-3 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
                 <div className="h-5 w-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
@@ -249,6 +249,39 @@ export default function UserProfiles() {
               <JsonEditor value={jsonData} onChange={setJsonData} height="300px" />
             </div>
 
+            {/* Generate transactions panel — above the editor */}
+            {creating && (
+              <div className="border border-slate-200 rounded-lg p-3 bg-slate-50">
+                <h3 className="text-sm font-semibold text-slate-700 mb-2">Generate Transactions</h3>
+                <textarea
+                  value={txPrompt}
+                  onChange={(e) => setTxPrompt(e.target.value)}
+                  rows={4}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none mb-3"
+                  placeholder="Describe what transactions to generate..."
+                />
+                <button
+                  onClick={handleGenerateTx}
+                  disabled={generatingTx || !txPrompt.trim()}
+                  className="px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  {generatingTx ? (
+                    <>
+                      <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    'Generate'
+                  )}
+                </button>
+                {generatingTx && (
+                  <span className="ml-3 text-xs text-slate-500">
+                    This may take 15-30 seconds...
+                  </span>
+                )}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Transactions (JSON)
@@ -256,45 +289,7 @@ export default function UserProfiles() {
                   <span className="ml-2 text-xs text-slate-400">No transactions fixture — will be created on save</span>
                 )}
               </label>
-              <div className="flex gap-4">
-                {/* Left: transaction JSON editor */}
-                <div className="flex-1">
-                  <JsonEditor value={txJsonData} onChange={setTxJsonData} height="300px" />
-                </div>
-
-                {/* Right: generate transactions panel */}
-                {creating && (
-                  <div className="w-80 flex flex-col border border-slate-200 rounded-lg p-3 bg-slate-50">
-                    <h3 className="text-sm font-semibold text-slate-700 mb-2">Generate Transactions</h3>
-                    <textarea
-                      value={txPrompt}
-                      onChange={(e) => setTxPrompt(e.target.value)}
-                      rows={8}
-                      className="w-full border border-slate-300 rounded px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none mb-3"
-                      placeholder="Describe what transactions to generate..."
-                    />
-                    <button
-                      onClick={handleGenerateTx}
-                      disabled={generatingTx || !txPrompt.trim()}
-                      className="w-full px-3 py-2 text-sm font-medium bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {generatingTx ? (
-                        <>
-                          <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Generating...
-                        </>
-                      ) : (
-                        'Generate'
-                      )}
-                    </button>
-                    {generatingTx && (
-                      <p className="mt-2 text-xs text-slate-500 text-center">
-                        This may take 15-30 seconds...
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
+              <JsonEditor value={txJsonData} onChange={setTxJsonData} height="300px" />
             </div>
 
             {error && <div className="text-rose-600 text-sm">{error}</div>}
