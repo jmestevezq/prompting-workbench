@@ -7,29 +7,23 @@ import StatusBadge from '../components/StatusBadge'
 import PromptEditor from '../components/PromptEditor'
 import JsonEditor from '../components/JsonEditor'
 import TranscriptPicker from '../components/TranscriptPicker'
+import SubNav from '../components/SubNav'
+import { FileText, Bot, Play } from 'lucide-react'
 
 type Tab = 'transcripts' | 'autoraters' | 'eval-runs'
+
+const subNavItems = [
+  { key: 'transcripts', label: 'Transcripts', icon: FileText },
+  { key: 'autoraters', label: 'Autoraters', icon: Bot },
+  { key: 'eval-runs', label: 'Eval Runs', icon: Play },
+]
 
 export default function Autorater() {
   const [activeTab, setActiveTab] = useState<Tab>('transcripts')
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex border-b border-gray-200 bg-white px-4 shrink-0">
-        {(['transcripts', 'autoraters', 'eval-runs'] as Tab[]).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {tab === 'transcripts' ? 'Transcripts' : tab === 'autoraters' ? 'Autoraters' : 'Eval Runs'}
-          </button>
-        ))}
-      </div>
+    <div className="h-full flex flex-row">
+      <SubNav items={subNavItems} active={activeTab} onChange={(key) => setActiveTab(key as Tab)} />
       <div className="flex-1 overflow-auto">
         {activeTab === 'transcripts' && <TranscriptsTab />}
         {activeTab === 'autoraters' && <AutoratersTab />}
@@ -109,21 +103,21 @@ function TranscriptsTab() {
             value={tagFilter}
             onChange={(e) => setTagFilter(e.target.value)}
             placeholder="Filter by tag..."
-            className="border border-gray-300 rounded px-2 py-1 text-sm flex-1"
+            className="border border-slate-300 rounded px-2 py-1 text-sm flex-1"
           />
           <button
             onClick={() => setShowImport(!showImport)}
-            className="bg-blue-600 text-white px-3 py-1 rounded text-sm"
+            className="bg-indigo-600 text-white px-3 py-1 rounded text-sm"
           >
             Import
           </button>
         </div>
 
         {showImport && (
-          <div className="mb-4 border border-gray-200 rounded p-3">
-            <label className="text-xs font-medium text-gray-500 mb-1 block">Paste JSON/JSONL</label>
+          <div className="mb-4 border border-slate-200 rounded p-3">
+            <label className="text-xs font-medium text-slate-500 mb-1 block">Paste JSON/JSONL</label>
             <JsonEditor value={importJson} onChange={setImportJson} height="150px" />
-            <button onClick={handleImport} className="mt-2 bg-blue-600 text-white px-3 py-1 rounded text-xs">
+            <button onClick={handleImport} className="mt-2 bg-indigo-600 text-white px-3 py-1 rounded text-xs">
               Import Transcripts
             </button>
           </div>
@@ -136,7 +130,7 @@ function TranscriptsTab() {
             { key: 'tags', header: 'Tags', render: (r) => {
               const t = r as Transcript
               return (t.tags ?? []).map((tag) => (
-                <span key={tag} className="inline-block mr-1 text-xs bg-blue-50 text-blue-600 rounded px-1">{tag}</span>
+                <span key={tag} className="inline-block mr-1 text-xs bg-indigo-50 text-indigo-600 rounded px-1">{tag}</span>
               ))
             }},
             { key: 'created_at', header: 'Created', sortable: true },
@@ -147,28 +141,28 @@ function TranscriptsTab() {
       </div>
 
       {selected && (
-        <div className="w-96 border-l border-gray-200 p-4 overflow-auto bg-gray-50">
+        <div className="w-96 border-l border-slate-200 p-4 overflow-auto bg-slate-50">
           <div className="flex justify-between items-center mb-3">
             <h3 className="font-medium text-sm">{selected.name || 'Transcript'}</h3>
-            <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-xs">Close</button>
+            <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-600 text-xs">Close</button>
           </div>
           <pre className="text-xs bg-white rounded p-3 mb-3 whitespace-pre-wrap max-h-48 overflow-auto border">
             {selected.content}
           </pre>
 
           <div className="mb-3">
-            <label className="text-xs font-medium text-gray-500 block mb-1">Tags (comma-separated)</label>
+            <label className="text-xs font-medium text-slate-500 block mb-1">Tags (comma-separated)</label>
             <div className="flex gap-1">
               <input
                 value={editingTags}
                 onChange={(e) => setEditingTags(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSaveTags() }}
                 placeholder="polite, accurate, refund..."
-                className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs"
+                className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs"
               />
               <button
                 onClick={handleSaveTags}
-                className="bg-blue-600 text-white px-2 py-1 rounded text-xs"
+                className="bg-indigo-600 text-white px-2 py-1 rounded text-xs"
               >
                 Save
               </button>
@@ -179,9 +173,9 @@ function TranscriptsTab() {
                   const label = editingLabels[tag]
                   return (
                     <span key={tag} className={`inline-block text-xs rounded px-1.5 py-0.5 ${
-                      label === 'P' ? 'bg-green-100 text-green-700' :
-                      label === 'N' ? 'bg-red-100 text-red-700' :
-                      'bg-blue-50 text-blue-600'
+                      label === 'P' ? 'bg-emerald-50 text-emerald-700' :
+                      label === 'N' ? 'bg-rose-50 text-rose-700' :
+                      'bg-indigo-50 text-indigo-600'
                     }`}>{tag}{label ? ` (${label})` : ''}</span>
                   )
                 })}
@@ -191,28 +185,28 @@ function TranscriptsTab() {
 
           {(selected.tags ?? []).length > 0 && (
             <div className="mb-3">
-              <label className="text-xs font-medium text-gray-500 block mb-1">Evaluation Annotations</label>
-              <p className="text-xs text-gray-400 mb-2">Mark each tag as P (positive — should pass) or N (negative — should fail) for eval metrics.</p>
+              <label className="text-xs font-medium text-slate-500 block mb-1">Evaluation Annotations</label>
+              <p className="text-xs text-slate-400 mb-2">Mark each tag as P (positive — should pass) or N (negative — should fail) for eval metrics.</p>
               <div className="space-y-1">
                 {selected.tags!.map((tag) => {
                   const label = editingLabels[tag]
                   return (
                     <div key={tag} className="flex items-center gap-1.5 text-xs">
-                      <span className="text-gray-700 w-24 truncate">{tag}</span>
+                      <span className="text-slate-700 w-24 truncate">{tag}</span>
                       <button
                         onClick={() => toggleLabel(tag, 'P')}
-                        className={`px-2 py-0.5 rounded ${label === 'P' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-green-100'}`}
+                        className={`px-2 py-0.5 rounded ${label === 'P' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-emerald-100'}`}
                       >
                         P
                       </button>
                       <button
                         onClick={() => toggleLabel(tag, 'N')}
-                        className={`px-2 py-0.5 rounded ${label === 'N' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-red-100'}`}
+                        className={`px-2 py-0.5 rounded ${label === 'N' ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-rose-100'}`}
                       >
                         N
                       </button>
                       {label && (
-                        <span className={`text-xs ${label === 'P' ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`text-xs ${label === 'P' ? 'text-emerald-600' : 'text-rose-600'}`}>
                           {label === 'P' ? 'Positive' : 'Negative'}
                         </span>
                       )}
@@ -220,7 +214,7 @@ function TranscriptsTab() {
                   )
                 })}
               </div>
-              <p className="text-xs text-gray-400 mt-1">Click Save above to persist annotations.</p>
+              <p className="text-xs text-slate-400 mt-1">Click Save above to persist annotations.</p>
             </div>
           )}
         </div>
@@ -280,8 +274,8 @@ function AutoratersTab() {
 
   return (
     <div className="flex h-full">
-      <div className="w-64 border-r border-gray-200 p-3 overflow-auto">
-        <button onClick={handleCreate} className="w-full bg-blue-600 text-white px-3 py-1.5 rounded text-sm mb-3">
+      <div className="w-64 border-r border-slate-200 p-3 overflow-auto">
+        <button onClick={handleCreate} className="w-full bg-indigo-600 text-white px-3 py-1.5 rounded text-sm mb-3">
           New Autorater
         </button>
         <div className="space-y-1">
@@ -289,7 +283,7 @@ function AutoratersTab() {
             <div
               key={a.id}
               onClick={() => selectAutorater(a)}
-              className={`px-3 py-2 rounded text-sm cursor-pointer ${selected?.id === a.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'}`}
+              className={`px-3 py-2 rounded text-sm cursor-pointer ${selected?.id === a.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50'}`}
             >
               {a.name}
             </div>
@@ -301,39 +295,39 @@ function AutoratersTab() {
         <div className="flex-1 p-4 overflow-auto">
           <div className="space-y-4 max-w-3xl">
             <div>
-              <label className="text-xs font-medium text-gray-500 mb-1 block">Name</label>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">Name</label>
               <input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+                className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 mb-1 block">Model</label>
-              <select value={editModel} onChange={(e) => setEditModel(e.target.value)} className="border border-gray-300 rounded px-3 py-1.5 text-sm">
+              <label className="text-xs font-medium text-slate-500 mb-1 block">Model</label>
+              <select value={editModel} onChange={(e) => setEditModel(e.target.value)} className="border border-slate-300 rounded px-3 py-1.5 text-sm">
                 <option value="gemini-2.5-pro">gemini-2.5-pro</option>
                 <option value="gemini-2.5-flash">gemini-2.5-flash</option>
                 <option value="gemini-2.0-flash">gemini-2.0-flash</option>
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 mb-1 block">Prompt (use {'{{transcript}}'} placeholder)</label>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">Prompt (use {'{{transcript}}'} placeholder)</label>
               <PromptEditor value={editPrompt} onChange={setEditPrompt} height="300px" />
             </div>
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="bg-blue-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
+                className="bg-indigo-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
               >
                 {saving ? 'Saving...' : 'Save'}
               </button>
-              {saveError && <span className="text-red-600 text-sm">{saveError}</span>}
+              {saveError && <span className="text-rose-600 text-sm">{saveError}</span>}
             </div>
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Select or create an autorater</div>
+        <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">Select or create an autorater</div>
       )}
     </div>
   )
@@ -450,15 +444,15 @@ function EvalRunsTab() {
   return (
     <div className="p-4">
       {/* Launch Section */}
-      <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4">
+      <div className="mb-6 bg-white border border-slate-200 rounded-lg p-4">
         <h3 className="text-sm font-medium mb-3">Launch Eval Run</h3>
         <div className="flex items-end gap-3 mb-3">
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Autorater</label>
+            <label className="text-xs text-slate-500 block mb-1">Autorater</label>
             <select
               value={selectedAutoraterId}
               onChange={(e) => setSelectedAutoraterId(e.target.value)}
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+              className="border border-slate-300 rounded px-2 py-1.5 text-sm"
             >
               <option value="">Select...</option>
               {autoraters.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -471,22 +465,22 @@ function EvalRunsTab() {
           />
           <button
             onClick={() => setShowEvalTags(!showEvalTags)}
-            className={`text-xs py-1.5 ${selectedEvalTags.size ? 'text-green-600 hover:text-green-800' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`text-xs py-1.5 ${selectedEvalTags.size ? 'text-emerald-600 hover:text-emerald-800' : 'text-slate-500 hover:text-slate-700'}`}
           >
             {selectedEvalTags.size ? `Eval tags: ${selectedEvalTags.size} selected` : 'Evaluation Tags'} {showEvalTags ? '▲' : '▼'}
           </button>
           <button
             onClick={handleLaunch}
             disabled={launching || !selectedAutoraterId || !selectedTranscriptIds.size}
-            className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm disabled:opacity-50"
+            className="bg-indigo-600 text-white px-4 py-1.5 rounded text-sm disabled:opacity-50"
           >
             {launching ? 'Launching...' : 'Run Evaluation'}
           </button>
         </div>
 
         {showEvalTags && (
-          <div className="border border-gray-200 rounded p-3">
-            <p className="text-xs text-gray-500 mb-2">
+          <div className="border border-slate-200 rounded p-3">
+            <p className="text-xs text-slate-500 mb-2">
               Select tags to compute per-tag precision/recall. Only tags with P/N annotations on selected transcripts are shown.
             </p>
             {annotatedTags.length > 0 ? (
@@ -503,16 +497,16 @@ function EvalRunsTab() {
                           if (next.has(tag)) next.delete(tag); else next.add(tag)
                           setSelectedEvalTags(next)
                         }}
-                        className="rounded border-gray-300"
+                        className="rounded border-slate-300"
                       />
-                      <span className="text-gray-700">{tag}</span>
-                      <span className="text-gray-400">— {coverage.annotated} of {coverage.total} annotated</span>
+                      <span className="text-slate-700">{tag}</span>
+                      <span className="text-slate-400">— {coverage.annotated} of {coverage.total} annotated</span>
                     </label>
                   )
                 })}
               </div>
             ) : (
-              <p className="text-xs text-gray-400 italic">No P/N annotations found on selected transcripts. Annotate transcripts in the Transcripts tab first.</p>
+              <p className="text-xs text-slate-400 italic">No P/N annotations found on selected transcripts. Annotate transcripts in the Transcripts tab first.</p>
             )}
           </div>
         )}
@@ -541,9 +535,9 @@ function EvalRunsTab() {
             <h3 className="text-sm font-medium mb-2">Run Detail</h3>
             <div className="flex items-center gap-2 mb-3">
               <StatusBadge status={selectedRun.status} />
-              <span className="text-xs text-gray-500">{selectedRun.created_at}</span>
+              <span className="text-xs text-slate-500">{selectedRun.created_at}</span>
               {selectedRun.eval_tags && selectedRun.eval_tags.length > 0 && (
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-slate-400">
                   eval tags: {selectedRun.eval_tags.join(', ')}
                 </span>
               )}
@@ -569,27 +563,27 @@ function EvalRunsTab() {
                       }}
                     />
                     <div className="mt-1 grid grid-cols-4 gap-2 text-xs text-center">
-                      <div className="bg-green-50 rounded p-1"><div className="text-green-700 font-medium">{m.tp}</div><div className="text-gray-400">TP</div></div>
-                      <div className="bg-red-50 rounded p-1"><div className="text-red-700 font-medium">{m.fp}</div><div className="text-gray-400">FP</div></div>
-                      <div className="bg-orange-50 rounded p-1"><div className="text-orange-700 font-medium">{m.fn}</div><div className="text-gray-400">FN</div></div>
-                      <div className="bg-gray-50 rounded p-1"><div className="text-gray-700 font-medium">{m.tn}</div><div className="text-gray-400">TN</div></div>
+                      <div className="bg-emerald-50 rounded p-1"><div className="text-emerald-700 font-medium">{m.tp}</div><div className="text-slate-400">TP</div></div>
+                      <div className="bg-rose-50 rounded p-1"><div className="text-rose-700 font-medium">{m.fp}</div><div className="text-slate-400">FP</div></div>
+                      <div className="bg-amber-50 rounded p-1"><div className="text-amber-700 font-medium">{m.fn}</div><div className="text-slate-400">FN</div></div>
+                      <div className="bg-slate-50 rounded p-1"><div className="text-slate-700 font-medium">{m.tn}</div><div className="text-slate-400">TN</div></div>
                     </div>
-                    <div className="text-xs text-gray-400 mt-1">{m.annotated} annotated transcripts</div>
+                    <div className="text-xs text-slate-400 mt-1">{m.annotated} annotated transcripts</div>
                   </div>
                 ))}
               </>
             )}
             <div className="mt-3">
-              <h4 className="text-xs font-medium text-gray-500 mb-2">Per-Transcript Results</h4>
+              <h4 className="text-xs font-medium text-slate-500 mb-2">Per-Transcript Results</h4>
               <div className="space-y-1 max-h-96 overflow-auto">
                 {results.map((r) => {
                   const assessment = (r.predicted_labels as Record<string, string>)?.assessment
                   const gtLabels = r.ground_truth_labels as Record<string, string>
                   const hasAnnotations = Object.keys(gtLabels).length > 0
-                  const bgClass = assessment === 'pass' ? 'bg-blue-50' : 'bg-orange-50'
+                  const bgClass = assessment === 'pass' ? 'bg-indigo-50' : 'bg-amber-50'
 
                   return (
-                    <details key={r.id} className="border border-gray-200 rounded text-xs">
+                    <details key={r.id} className="border border-slate-200 rounded text-xs">
                       <summary className={`px-3 py-1.5 cursor-pointer ${bgClass}`}>
                         {r.transcript_id.slice(0, 8)}... — {assessment ?? 'unknown'}
                         {hasAnnotations && (
@@ -598,7 +592,7 @@ function EvalRunsTab() {
                               const expected = label === 'P' ? 'pass' : 'fail'
                               const agree = assessment === expected
                               return (
-                                <span key={tag} className={`inline-block ml-1 px-1 rounded ${agree ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                <span key={tag} className={`inline-block ml-1 px-1 rounded ${agree ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
                                   {tag}: {agree ? 'ok' : 'miss'}
                                 </span>
                               )
@@ -607,8 +601,8 @@ function EvalRunsTab() {
                         )}
                       </summary>
                       <div className="px-3 py-2 space-y-1">
-                        <div><span className="text-gray-500">Response:</span> {JSON.stringify(r.predicted_labels)}</div>
-                        {hasAnnotations && <div><span className="text-gray-500">Annotations:</span> {JSON.stringify(gtLabels)}</div>}
+                        <div><span className="text-slate-500">Response:</span> {JSON.stringify(r.predicted_labels)}</div>
+                        {hasAnnotations && <div><span className="text-slate-500">Annotations:</span> {JSON.stringify(gtLabels)}</div>}
                       </div>
                     </details>
                   )

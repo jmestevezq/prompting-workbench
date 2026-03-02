@@ -73,29 +73,29 @@ export default function DataTable({
   }
 
   if (!data.length) {
-    return <div className="text-center py-8 text-gray-400 text-sm">{emptyMessage}</div>
+    return <div className="text-center py-8 text-slate-400 text-sm">{emptyMessage}</div>
   }
 
   return (
-    <div className="overflow-auto">
-      <table className="w-full text-sm">
+    <div className="overflow-auto rounded-lg border border-slate-200 shadow-xs">
+      <table className="w-full text-[13px]">
         <thead>
-          <tr className="border-b border-gray-200">
+          <tr className="bg-slate-50 border-b border-slate-200">
             {selectable && (
-              <th className="px-3 py-2 w-8">
+              <th className="px-4 py-2.5 w-8">
                 <input
                   type="checkbox"
                   checked={allSelected}
                   ref={(el) => { if (el) el.indeterminate = !!someSelected }}
                   onChange={toggleAll}
-                  className="rounded border-gray-300"
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
               </th>
             )}
             {columns.map((col) => (
               <th
                 key={col.key}
-                className={`text-left px-3 py-2 font-medium text-gray-600 ${col.sortable ? 'cursor-pointer hover:text-gray-900 select-none' : ''}`}
+                className={`text-left px-4 py-2.5 text-xs uppercase tracking-wider font-medium text-slate-500 ${col.sortable ? 'cursor-pointer hover:text-slate-700 select-none' : ''}`}
                 onClick={col.sortable ? () => handleSort(col.key) : undefined}
               >
                 {col.header}
@@ -104,28 +104,35 @@ export default function DataTable({
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="bg-white">
           {sorted.map((row) => {
             const rowId = String(row[keyField])
+            const isSelected = selectedIds?.has(rowId)
             return (
               <tr
                 key={rowId}
-                className={`border-b border-gray-100 ${onRowClick ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                className={`border-b border-slate-100 transition-colors duration-100 ${
+                  isSelected
+                    ? 'bg-indigo-50 border-l-2 border-l-indigo-500'
+                    : onRowClick
+                      ? 'cursor-pointer hover:bg-indigo-50/50'
+                      : ''
+                }`}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
                 {selectable && (
-                  <td className="px-3 py-2 w-8">
+                  <td className="px-4 py-3 w-8">
                     <input
                       type="checkbox"
-                      checked={selectedIds?.has(rowId) ?? false}
+                      checked={isSelected ?? false}
                       onChange={() => toggleRow(rowId)}
                       onClick={(e) => e.stopPropagation()}
-                      className="rounded border-gray-300"
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                     />
                   </td>
                 )}
                 {columns.map((col) => (
-                  <td key={col.key} className="px-3 py-2 text-gray-800">
+                  <td key={col.key} className="px-4 py-3 text-slate-700">
                     {col.render ? col.render(row) : String(row[col.key] ?? '')}
                   </td>
                 ))}

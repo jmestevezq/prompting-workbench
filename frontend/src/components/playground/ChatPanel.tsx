@@ -45,18 +45,18 @@ export default function ChatPanel({
   }
 
   return (
-    <div className="flex flex-col border-r border-gray-200 bg-white overflow-hidden">
+    <div className="flex flex-col border-r border-slate-200 bg-white overflow-hidden">
       {/* Status bar */}
-      <div className="px-4 py-2 border-b border-gray-200 flex items-center gap-2 text-xs text-gray-500">
-        <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-400' : 'bg-gray-300'}`} />
+      <div className="px-4 py-2 border-b border-slate-200 flex items-center gap-2 text-xs text-slate-500">
+        <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-400' : 'bg-slate-300'}`} />
         {sessionActive ? (wsConnected ? 'Connected' : 'Disconnected') : 'No session'}
-        {isStreaming && <span className="text-blue-600 ml-2">Generating...</span>}
+        {isStreaming && <span className="text-indigo-600 ml-2">Generating...</span>}
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {!sessionActive && (
-          <div className="text-center text-gray-400 text-sm mt-16">
+          <div className="text-center text-slate-400 text-sm mt-16">
             Select an agent to start chatting
           </div>
         )}
@@ -74,19 +74,19 @@ export default function ChatPanel({
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="p-3 border-t border-gray-200">
+      <form onSubmit={handleSubmit} className="p-3 border-t border-slate-200">
         <div className="flex gap-2">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={sessionActive ? 'Type a message...' : 'Select an agent first'}
             disabled={!sessionActive || isStreaming}
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+            className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50"
           />
           <button
             type="submit"
             disabled={!sessionActive || isStreaming || !input.trim()}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
           >
             Send
           </button>
@@ -172,7 +172,7 @@ function tryParseRenderableBlocks(content: string): { blocks: RenderableBlock[];
 // ── Widget renderers ────────────────────────────────────────────────
 
 const CHART_COLORS = [
-  '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
+  '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
   '#ef4444', '#06b6d4', '#f97316', '#6366f1', '#14b8a6',
 ]
 
@@ -192,11 +192,11 @@ function PromptSuggestionChips({
             e.stopPropagation()
             onSuggestionClick?.(suggestion)
           }}
-          className="group/chip relative text-left px-4 py-2.5 rounded-2xl border border-gray-200 bg-white text-sm text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-all duration-150 shadow-sm hover:shadow cursor-pointer max-w-[320px]"
+          className="group/chip relative text-left px-4 py-2.5 rounded-2xl border border-slate-200 bg-white text-sm text-slate-700 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-all duration-150 shadow-xs hover:shadow cursor-pointer max-w-[320px]"
         >
           <span className="line-clamp-2">{suggestion}</span>
           <svg
-            className="inline-block ml-1.5 w-3.5 h-3.5 text-gray-300 group-hover/chip:text-blue-400 transition-colors shrink-0"
+            className="inline-block ml-1.5 w-3.5 h-3.5 text-slate-300 group-hover/chip:text-indigo-400 transition-colors shrink-0"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -245,8 +245,8 @@ function PieChartWidget({ slices }: { slices: { label: string; value: number }[]
         {arcs.map((arc, i) => (
           <div key={i} className="flex items-center gap-1.5 min-w-0">
             <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: arc.color }} />
-            <span className="truncate text-gray-700">{arc.label}</span>
-            <span className="text-gray-400 ml-auto shrink-0">{arc.pct}%</span>
+            <span className="truncate text-slate-700">{arc.label}</span>
+            <span className="text-slate-400 ml-auto shrink-0">{arc.pct}%</span>
           </div>
         ))}
       </div>
@@ -291,20 +291,20 @@ function LineChartWidget({ dataPoints }: { dataPoints: { x: string; y: number }[
       {yTicks.map((t, i) => (
         <g key={i}>
           <line x1={pad.left} y1={t.y} x2={w - pad.right} y2={t.y} stroke="#e5e7eb" strokeWidth={1} />
-          <text x={pad.left - 6} y={t.y + 3} textAnchor="end" className="text-[9px] fill-gray-400">{t.label}</text>
+          <text x={pad.left - 6} y={t.y + 3} textAnchor="end" className="text-[9px] fill-slate-400">{t.label}</text>
         </g>
       ))}
       {/* Area fill */}
-      <path d={areaPath} fill="#3b82f6" opacity={0.08} />
+      <path d={areaPath} fill="#6366f1" opacity={0.08} />
       {/* Line */}
-      <path d={linePath} fill="none" stroke="#3b82f6" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <path d={linePath} fill="none" stroke="#6366f1" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
       {/* Dots + X labels */}
       {points.map((p, i) => (
         <g key={i}>
-          <circle cx={p.x} cy={p.y} r={3} fill="white" stroke="#3b82f6" strokeWidth={1.5}>
+          <circle cx={p.x} cy={p.y} r={3} fill="white" stroke="#6366f1" strokeWidth={1.5}>
             <title>{p.label}: {p.value}</title>
           </circle>
-          <text x={p.x} y={h - 6} textAnchor="middle" className="text-[9px] fill-gray-500">{p.label}</text>
+          <text x={p.x} y={h - 6} textAnchor="middle" className="text-[9px] fill-slate-500">{p.label}</text>
         </g>
       ))}
     </svg>
@@ -322,12 +322,12 @@ function TableWidget({
 }) {
   return (
     <div className="overflow-auto">
-      {title && <div className="text-xs font-semibold text-gray-700 mb-1.5">{title}</div>}
+      {title && <div className="text-xs font-semibold text-slate-700 mb-1.5">{title}</div>}
       <table className="text-xs border-collapse w-full">
         <thead>
           <tr>
             {headers.map((h, i) => (
-              <th key={i} className="px-2.5 py-1.5 text-left font-semibold text-gray-600 bg-gray-200/70 border border-gray-300 whitespace-nowrap">
+              <th key={i} className="px-2.5 py-1.5 text-left font-semibold text-slate-600 bg-slate-200/70 border border-slate-300 whitespace-nowrap">
                 {h.text}
               </th>
             ))}
@@ -335,9 +335,9 @@ function TableWidget({
         </thead>
         <tbody>
           {rows.map((row, ri) => (
-            <tr key={ri} className={ri % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+            <tr key={ri} className={ri % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
               {row.cells.map((cell, ci) => (
-                <td key={ci} className="px-2.5 py-1.5 border border-gray-200 text-gray-700 whitespace-nowrap">
+                <td key={ci} className="px-2.5 py-1.5 border border-slate-200 text-slate-700 whitespace-nowrap">
                   {cell.textCell?.text ?? ''}
                 </td>
               ))}
@@ -366,7 +366,7 @@ function MessageBubble({
   if (role === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="bg-blue-600 text-white rounded-lg px-3 py-2 max-w-[80%] text-sm">
+        <div className="bg-indigo-600 text-white rounded-2xl px-3 py-2 max-w-[80%] text-sm">
           {content}
         </div>
       </div>
@@ -380,20 +380,20 @@ function MessageBubble({
     if (parsed) {
       return (
         <div className="group flex gap-2" onClick={onClick}>
-          <div className="bg-gray-100 rounded-lg px-3 py-2 max-w-[85%] text-sm">
+          <div className="bg-slate-100 rounded-2xl px-3 py-2 max-w-[85%] text-sm">
             {/* Text parts before/around blocks */}
             {!showJson && parsed.textParts.length > 0 && (
-              <div className="prose prose-sm prose-gray max-w-none mb-2">
+              <div className="prose prose-sm prose-slate max-w-none mb-2">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{parsed.textParts.join('\n\n')}</ReactMarkdown>
               </div>
             )}
 
             {showJson ? (
               <>
-                <pre className="whitespace-pre-wrap text-xs font-mono text-gray-700 overflow-auto">{content}</pre>
+                <pre className="whitespace-pre-wrap text-xs font-mono text-slate-700 overflow-auto">{content}</pre>
                 <button
                   onClick={(e) => { e.stopPropagation(); setShowJson(false) }}
-                  className="mt-2 text-[10px] text-blue-500 hover:text-blue-700 font-medium"
+                  className="mt-2 text-[10px] text-indigo-500 hover:text-indigo-700 font-medium"
                 >
                   raw message toggle
                 </button>
@@ -423,7 +423,7 @@ function MessageBubble({
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); setShowJson(true) }}
-                  className="mt-2 text-[10px] text-blue-500 hover:text-blue-700 font-medium"
+                  className="mt-2 text-[10px] text-indigo-500 hover:text-indigo-700 font-medium"
                 >
                   raw message toggle
                 </button>
@@ -432,7 +432,7 @@ function MessageBubble({
           </div>
           {!streaming && message.turnData && (
             <button
-              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 text-xs self-start mt-1"
+              className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 text-xs self-start mt-1"
               title="Inspect turn"
             >
               inspect
@@ -445,19 +445,19 @@ function MessageBubble({
     // Default: markdown rendering with raw toggle
     return (
       <div className="group flex gap-2" onClick={onClick}>
-        <div className="bg-gray-100 rounded-lg px-3 py-2 max-w-[85%] text-sm">
+        <div className="bg-slate-100 rounded-2xl px-3 py-2 max-w-[85%] text-sm">
           {showRaw ? (
-            <pre className="whitespace-pre-wrap text-xs font-mono text-gray-700 overflow-auto">{content}</pre>
+            <pre className="whitespace-pre-wrap text-xs font-mono text-slate-700 overflow-auto">{content}</pre>
           ) : (
-            <div className="prose prose-sm prose-gray max-w-none prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-th:bg-gray-200 prose-table:border-collapse prose-th:border prose-th:border-gray-300 prose-td:border prose-td:border-gray-300">
+            <div className="prose prose-sm prose-slate max-w-none prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-th:bg-slate-200 prose-table:border-collapse prose-th:border prose-th:border-slate-300 prose-td:border prose-td:border-slate-300">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
             </div>
           )}
-          {streaming && <span className="inline-block w-1.5 h-4 bg-blue-500 animate-pulse ml-0.5" />}
+          {streaming && <span className="inline-block w-1.5 h-4 bg-indigo-500 animate-pulse ml-0.5" />}
           {!streaming && content && (
             <button
               onClick={(e) => { e.stopPropagation(); setShowRaw(!showRaw) }}
-              className="mt-1 text-[10px] text-gray-400 hover:text-gray-600"
+              className="mt-1 text-[10px] text-slate-400 hover:text-slate-600"
             >
               {showRaw ? 'rendered' : 'raw'}
             </button>
@@ -465,7 +465,7 @@ function MessageBubble({
         </div>
         {!streaming && message.turnData && (
           <button
-            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 text-xs self-start mt-1"
+            className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 text-xs self-start mt-1"
             title="Inspect turn"
           >
             inspect
@@ -503,7 +503,7 @@ function MessageBubble({
 
   if (role === 'system') {
     return (
-      <div className="text-center text-xs text-gray-400 py-1">{content}</div>
+      <div className="text-center text-xs text-slate-400 py-1">{content}</div>
     )
   }
 

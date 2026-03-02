@@ -16,12 +16,12 @@ export default function DiffViewer({
   const maxLines = Math.max(leftLines.length, rightLines.length)
 
   return (
-    <div className="grid grid-cols-2 gap-0 border border-gray-200 rounded overflow-hidden text-xs font-mono">
-      <div className="border-r border-gray-200">
-        <div className="bg-gray-100 px-3 py-1.5 font-medium text-gray-600 border-b border-gray-200">
+    <div className="grid grid-cols-2 gap-0 border border-slate-200 rounded-lg overflow-hidden text-xs font-mono shadow-xs">
+      <div className="border-r border-slate-200">
+        <div className="bg-slate-50 px-3 py-2 font-medium text-slate-500 border-b border-slate-200 text-[11px] uppercase tracking-wider">
           {leftTitle}
         </div>
-        <div className="p-2 overflow-auto max-h-96">
+        <div className="p-2 overflow-auto max-h-96 bg-white">
           {Array.from({ length: maxLines }, (_, i) => {
             const line = leftLines[i] ?? ''
             const otherLine = rightLines[i] ?? ''
@@ -29,7 +29,7 @@ export default function DiffViewer({
             return (
               <div
                 key={i}
-                className={`px-1 ${changed ? 'bg-red-50 text-red-800' : ''}`}
+                className={`px-1 leading-5 ${changed ? 'bg-rose-50 text-rose-800' : 'text-slate-700'}`}
               >
                 {line || '\u00A0'}
               </div>
@@ -38,10 +38,10 @@ export default function DiffViewer({
         </div>
       </div>
       <div>
-        <div className="bg-gray-100 px-3 py-1.5 font-medium text-gray-600 border-b border-gray-200">
+        <div className="bg-slate-50 px-3 py-2 font-medium text-slate-500 border-b border-slate-200 text-[11px] uppercase tracking-wider">
           {rightTitle}
         </div>
-        <div className="p-2 overflow-auto max-h-96">
+        <div className="p-2 overflow-auto max-h-96 bg-white">
           {Array.from({ length: maxLines }, (_, i) => {
             const line = rightLines[i] ?? ''
             const otherLine = leftLines[i] ?? ''
@@ -49,7 +49,7 @@ export default function DiffViewer({
             return (
               <div
                 key={i}
-                className={`px-1 ${changed ? 'bg-green-50 text-green-800' : ''}`}
+                className={`px-1 leading-5 ${changed ? 'bg-emerald-50 text-emerald-800' : 'text-slate-700'}`}
               >
                 {line || '\u00A0'}
               </div>

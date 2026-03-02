@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { Transcript } from '../api/types'
 import DataTable from './DataTable'
 import StatusBadge from './StatusBadge'
@@ -56,25 +57,26 @@ export default function TranscriptPicker({
     <div>
       <button
         onClick={() => setExpanded(!expanded)}
-        className="text-xs text-blue-600 hover:text-blue-800 py-1.5"
+        className="flex items-center gap-1.5 text-[13px] font-medium text-indigo-600 hover:text-indigo-700 py-1.5 transition-colors"
       >
-        {selectedIds.size} of {transcripts.length} transcripts {expanded ? '▲' : '▼'}
+        {selectedIds.size} of {transcripts.length} transcripts
+        {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
 
       {expanded && (
         <div className="mt-2">
           {allTags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
+            <div className="flex flex-wrap gap-1.5 mb-3">
               {allTags.map((tag) => {
                 const selected = isTagFullySelected(tag)
                 return (
                   <button
                     key={tag}
                     onClick={() => toggleTagChip(tag)}
-                    className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-all duration-150 font-medium ${
                       selected
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:border-indigo-400'
                     }`}
                   >
                     {tag} ({tagCounts[tag]})
@@ -83,7 +85,7 @@ export default function TranscriptPicker({
               })}
             </div>
           )}
-          <div className="border border-gray-200 rounded max-h-56 overflow-auto">
+          <div className="max-h-56 overflow-auto">
             <DataTable
               columns={[
                 { key: 'name', header: 'Name', sortable: true },
@@ -94,7 +96,7 @@ export default function TranscriptPicker({
                   render: (r) => {
                     const t = r as Transcript
                     return (t.tags ?? []).map((tag) => (
-                      <span key={tag} className="inline-block mr-1 text-xs bg-blue-50 text-blue-600 rounded px-1">
+                      <span key={tag} className="inline-block mr-1 text-xs bg-indigo-50 text-indigo-700 rounded-full px-2 py-0.5 font-medium">
                         {tag}
                       </span>
                     ))

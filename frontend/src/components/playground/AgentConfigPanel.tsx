@@ -37,22 +37,22 @@ function FixturePreview({
   }
 
   return (
-    <div className="mt-2 border border-gray-200 rounded">
+    <div className="mt-2 border border-slate-200 rounded">
       <div
-        className="flex items-center justify-between px-2 py-1.5 bg-gray-50 cursor-pointer"
+        className="flex items-center justify-between px-2 py-1.5 bg-slate-50 cursor-pointer"
         onClick={() => !editing && setExpanded(!expanded)}
       >
-        <span className="text-xs text-gray-500 font-medium">{label}</span>
+        <span className="text-xs text-slate-500 font-medium">{label}</span>
         <div className="flex items-center gap-1">
           {!editing && (
             <button
               onClick={(e) => { e.stopPropagation(); handleStartEdit() }}
-              className="text-[10px] text-blue-600 hover:text-blue-700 px-1"
+              className="text-[10px] text-indigo-600 hover:text-indigo-700 px-1"
             >
               Edit
             </button>
           )}
-          <span className="text-[10px] text-gray-400">{expanded ? '▼' : '▶'}</span>
+          <span className="text-[10px] text-slate-400">{expanded ? '▼' : '▶'}</span>
         </div>
       </div>
       {expanded && (
@@ -63,16 +63,16 @@ function FixturePreview({
               onChange={setEditValue}
               height="180px"
             />
-            <div className="flex gap-1 p-1.5 border-t border-gray-200 bg-gray-50">
+            <div className="flex gap-1 p-1.5 border-t border-slate-200 bg-slate-50">
               <button
                 onClick={handleSave}
-                className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                className="text-xs px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700"
               >
                 Save
               </button>
               <button
                 onClick={() => setEditing(false)}
-                className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
+                className="text-xs px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
               >
                 Cancel
               </button>
@@ -178,16 +178,16 @@ export default function AgentConfigPanel({
   }
 
   return (
-    <div className="border-r border-gray-200 bg-white overflow-y-auto flex flex-col">
-      <div className="p-3 border-b border-gray-200">
-        <label className="block text-xs font-medium text-gray-500 mb-1">Agent</label>
+    <div className="border-r border-slate-200 bg-white overflow-y-auto flex flex-col">
+      <div className="p-3 border-b border-slate-200">
+        <label className="block text-xs font-medium text-slate-500 mb-1">Agent</label>
         <select
           value={activeAgent?.id ?? ''}
           onChange={(e) => {
             const agent = agents.find((a) => a.id === e.target.value)
             if (agent) onAgentSelect(agent)
           }}
-          className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
+          className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
         >
           <option value="">Select agent...</option>
           {agents.map((a) => (
@@ -199,12 +199,12 @@ export default function AgentConfigPanel({
       {activeAgent && (
         <>
           {/* Model */}
-          <div className="p-3 border-b border-gray-200">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Model</label>
+          <div className="p-3 border-b border-slate-200">
+            <label className="block text-xs font-medium text-slate-500 mb-1">Model</label>
             <select
               value={activeAgent.model}
               onChange={(e) => onAgentUpdate({ model: e.target.value })}
-              className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
+              className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
             >
               <option value="gemini-2.5-pro">gemini-2.5-pro</option>
               <option value="gemini-2.5-flash">gemini-2.5-flash</option>
@@ -213,12 +213,12 @@ export default function AgentConfigPanel({
           </div>
 
           {/* System Prompt */}
-          <div className="p-3 border-b border-gray-200">
+          <div className="p-3 border-b border-slate-200">
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-gray-500">System Prompt</label>
+              <label className="text-xs font-medium text-slate-500">System Prompt</label>
               <button
                 onClick={() => setShowPromptEditor(!showPromptEditor)}
-                className="text-xs text-blue-600 hover:text-blue-700"
+                className="text-xs text-indigo-600 hover:text-indigo-700"
               >
                 {showPromptEditor ? 'Collapse' : 'Expand'}
               </button>
@@ -230,7 +230,7 @@ export default function AgentConfigPanel({
                 height="200px"
               />
             ) : (
-              <div className="text-xs text-gray-600 bg-gray-50 rounded p-2 max-h-20 overflow-hidden">
+              <div className="text-xs text-slate-600 bg-slate-50 rounded p-2 max-h-20 overflow-hidden">
                 {activeAgent.system_prompt.slice(0, 150)}
                 {activeAgent.system_prompt.length > 150 && '...'}
               </div>
@@ -238,7 +238,7 @@ export default function AgentConfigPanel({
             <div className="flex gap-1 mt-1">
               <button
                 onClick={() => setShowVersionSave(true)}
-                className="text-xs text-blue-600 hover:text-blue-700"
+                className="text-xs text-indigo-600 hover:text-indigo-700"
               >
                 Save Version
               </button>
@@ -249,7 +249,7 @@ export default function AgentConfigPanel({
                   value={versionLabel}
                   onChange={(e) => setVersionLabel(e.target.value)}
                   placeholder="Label (e.g. v3-fixed)"
-                  className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs"
+                  className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs"
                 />
                 <button
                   onClick={() => {
@@ -257,7 +257,7 @@ export default function AgentConfigPanel({
                     setVersionLabel('')
                     setShowVersionSave(false)
                   }}
-                  className="bg-blue-600 text-white px-2 py-1 rounded text-xs"
+                  className="bg-indigo-600 text-white px-2 py-1 rounded text-xs"
                 >
                   Save
                 </button>
@@ -266,15 +266,15 @@ export default function AgentConfigPanel({
           </div>
 
           {/* Fixtures */}
-          <div className="p-3 border-b border-gray-200">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Fixtures</label>
+          <div className="p-3 border-b border-slate-200">
+            <label className="block text-xs font-medium text-slate-500 mb-1">Fixtures</label>
             <div className="space-y-2">
               <div>
-                <label className="text-xs text-gray-400">User Profile</label>
+                <label className="text-xs text-slate-400">User Profile</label>
                 <select
                   value={selectedProfile?.id ?? ''}
                   onChange={(e) => handleFixtureChange('user_profile', e.target.value)}
-                  className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
+                  className="w-full border border-slate-300 rounded px-2 py-1 text-xs"
                 >
                   <option value="">None</option>
                   {userProfiles.map((f) => (
@@ -283,11 +283,11 @@ export default function AgentConfigPanel({
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-400">Transactions</label>
+                <label className="text-xs text-slate-400">Transactions</label>
                 <select
                   value={selectedTx?.id ?? ''}
                   onChange={(e) => handleFixtureChange('transactions', e.target.value)}
-                  className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
+                  className="w-full border border-slate-300 rounded px-2 py-1 text-xs"
                 >
                   <option value="">None</option>
                   {transactions.map((f) => (
@@ -296,13 +296,13 @@ export default function AgentConfigPanel({
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-400">Simulation Date</label>
+                <label className="text-xs text-slate-400">Simulation Date</label>
                 <input
                   type="date"
                   value={simulationDate}
                   onChange={(e) => handleSimulationDateChange(e.target.value)}
                   disabled={!selectedProfile}
-                  className="w-full border border-gray-300 rounded px-2 py-1 text-xs disabled:opacity-50 disabled:bg-gray-50"
+                  className="w-full border border-slate-300 rounded px-2 py-1 text-xs disabled:opacity-50 disabled:bg-slate-50"
                 />
               </div>
             </div>
@@ -323,7 +323,7 @@ export default function AgentConfigPanel({
             {sessionActive && (
               <button
                 onClick={onSwapFixture}
-                className="mt-2 w-full bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs hover:bg-gray-200"
+                className="mt-2 w-full bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs hover:bg-slate-200"
               >
                 Swap Data
               </button>
@@ -333,10 +333,10 @@ export default function AgentConfigPanel({
           {/* Tool Overrides */}
           <div className="p-3 flex-1">
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-gray-500">Tool Overrides</label>
+              <label className="text-xs font-medium text-slate-500">Tool Overrides</label>
               <button
                 onClick={() => setShowOverrides(!showOverrides)}
-                className="text-xs text-blue-600 hover:text-blue-700"
+                className="text-xs text-indigo-600 hover:text-indigo-700"
               >
                 {showOverrides ? 'Hide' : 'Show'}
               </button>
@@ -345,7 +345,7 @@ export default function AgentConfigPanel({
               <div className="space-y-1 mb-2">
                 {Object.entries(toolOverrides).map(([name, override]) => (
                   <div key={name} className="flex items-center justify-between bg-yellow-50 rounded px-2 py-1 text-xs">
-                    <span className={override.active ? 'text-yellow-700' : 'text-gray-400'}>
+                    <span className={override.active ? 'text-yellow-700' : 'text-slate-400'}>
                       {name} {override.active ? '(active)' : '(inactive)'}
                     </span>
                   </div>
@@ -364,7 +364,7 @@ export default function AgentConfigPanel({
                   value={overrideToolName}
                   onChange={(e) => setOverrideToolName(e.target.value)}
                   placeholder="Tool name"
-                  className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
+                  className="w-full border border-slate-300 rounded px-2 py-1 text-xs"
                 />
                 <JsonEditor
                   value={overrideJson}

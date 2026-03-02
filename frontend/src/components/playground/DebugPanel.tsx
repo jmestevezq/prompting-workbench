@@ -15,7 +15,7 @@ function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) 
   return (
     <button
       onClick={handleCopy}
-      className="text-[10px] px-1.5 py-0.5 rounded border border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition-colors shrink-0"
+      className="text-[10px] px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-colors shrink-0"
       title={label}
     >
       {copied ? 'Copied!' : label}
@@ -98,7 +98,7 @@ export default function DebugPanel({ selectedTurn, onRerun, isStreaming }: Debug
 
   if (!selectedTurn) {
     return (
-      <div className="bg-gray-50 flex items-center justify-center text-gray-400 text-sm">
+      <div className="bg-slate-50 flex items-center justify-center text-slate-400 text-sm">
         Click an agent message to inspect
       </div>
     )
@@ -107,15 +107,15 @@ export default function DebugPanel({ selectedTurn, onRerun, isStreaming }: Debug
   return (
     <div className="bg-white flex flex-col overflow-hidden">
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 shrink-0">
+      <div className="flex border-b border-slate-200 shrink-0">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={`relative px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
               activeTab === tab.key
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
             {tab.label}
@@ -152,17 +152,17 @@ export default function DebugPanel({ selectedTurn, onRerun, isStreaming }: Debug
       </div>
 
       {/* Controls */}
-      <div className="p-3 border-t border-gray-200 shrink-0 space-y-2">
+      <div className="p-3 border-t border-slate-200 shrink-0 space-y-2">
         {editMode && hasCalls && (
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={skipToolCalls}
               onChange={(e) => setSkipToolCalls(e.target.checked)}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
             />
-            <span className="text-xs text-gray-600">Lock responses</span>
-            <span className="text-[10px] text-gray-400" title="Use current tool responses as-is (or edited) and skip new tool calls. Gemini will only generate text.">?</span>
+            <span className="text-xs text-slate-600">Lock responses</span>
+            <span className="text-[10px] text-slate-400" title="Use current tool responses as-is (or edited) and skip new tool calls. Gemini will only generate text.">?</span>
           </label>
         )}
         <div className="flex items-center gap-2">
@@ -171,7 +171,7 @@ export default function DebugPanel({ selectedTurn, onRerun, isStreaming }: Debug
             className={`text-xs px-3 py-1.5 rounded border transition-colors ${
               editMode
                 ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
-                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                : 'border-slate-300 text-slate-700 hover:bg-slate-50'
             }`}
           >
             {editMode ? 'Cancel' : 'Edit'}
@@ -181,10 +181,10 @@ export default function DebugPanel({ selectedTurn, onRerun, isStreaming }: Debug
             disabled={isStreaming || (!editMode && !hasAnyEdits)}
             className={`text-xs px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 ${
               isStreaming
-                ? 'bg-blue-500 text-white cursor-wait'
+                ? 'bg-indigo-500 text-white cursor-wait'
                 : editMode || hasAnyEdits
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
             }`}
           >
             {isStreaming && (
@@ -224,7 +224,7 @@ function PromptTab({
   if (editMode) {
     return (
       <div>
-        <label className="text-xs font-medium text-gray-500 mb-1 block">Edit System Prompt</label>
+        <label className="text-xs font-medium text-slate-500 mb-1 block">Edit System Prompt</label>
         <JsonEditor
           value={editedPrompt || systemPrompt}
           onChange={onEditPrompt}
@@ -238,10 +238,10 @@ function PromptTab({
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <label className="text-xs font-medium text-gray-500">System Prompt</label>
+        <label className="text-xs font-medium text-slate-500">System Prompt</label>
         {systemPrompt && <CopyButton text={systemPrompt} />}
       </div>
-      <pre className="text-xs bg-gray-50 rounded p-3 whitespace-pre-wrap max-h-96 overflow-auto">
+      <pre className="text-xs bg-slate-50 rounded p-3 whitespace-pre-wrap max-h-96 overflow-auto">
         {systemPrompt || 'N/A'}
       </pre>
     </div>
@@ -263,7 +263,7 @@ function ToolsTab({
   const responses = (turn.tool_responses ?? []) as Array<{ name: string; response: unknown }>
 
   if (!calls.length) {
-    return <div className="text-xs text-gray-400">No tool calls in this turn</div>
+    return <div className="text-xs text-slate-400">No tool calls in this turn</div>
   }
 
   return (
@@ -274,7 +274,7 @@ function ToolsTab({
         const editKey = call.name
 
         return (
-          <div key={i} className="border border-gray-200 rounded overflow-hidden">
+          <div key={i} className="border border-slate-200 rounded overflow-hidden">
             <div className="bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 flex items-center justify-between">
               <span>{call.name}</span>
               <CopyButton text={JSON.stringify(call.args, null, 2)} label="Copy args" />
@@ -284,7 +284,7 @@ function ToolsTab({
             </pre>
             {resp && (
               <>
-                <div className="bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 border-t border-gray-200 flex items-center justify-between">
+                <div className="bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 border-t border-slate-200 flex items-center justify-between">
                   <span>Response</span>
                   <div className="flex items-center gap-2">
                     {editMode && (
@@ -294,7 +294,7 @@ function ToolsTab({
                   </div>
                 </div>
                 {editMode ? (
-                  <div className="border-t border-gray-200">
+                  <div className="border-t border-slate-200">
                     <JsonEditor
                       value={editedResponses[editKey] ?? responseJson}
                       onChange={(val) => onEditResponse(editKey, val)}
@@ -324,7 +324,7 @@ function RawTab({ data }: { data: unknown }) {
           <CopyButton text={formatted} />
         </div>
       )}
-      <pre className="text-xs bg-gray-50 rounded p-3 whitespace-pre-wrap overflow-auto max-h-[calc(100vh-250px)]">
+      <pre className="text-xs bg-slate-50 rounded p-3 whitespace-pre-wrap overflow-auto max-h-[calc(100vh-250px)]">
         {formatted || 'N/A'}
       </pre>
     </div>
@@ -334,23 +334,23 @@ function RawTab({ data }: { data: unknown }) {
 function TokensTab({ turn }: { turn: Turn }) {
   const usage = turn.token_usage
   if (!usage) {
-    return <div className="text-xs text-gray-400">No token data</div>
+    return <div className="text-xs text-slate-400">No token data</div>
   }
 
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-gray-50 rounded p-3">
-          <div className="text-xs text-gray-500">Prompt Tokens</div>
+        <div className="bg-slate-50 rounded p-3">
+          <div className="text-xs text-slate-500">Prompt Tokens</div>
           <div className="text-lg font-semibold">{usage.prompt_tokens ?? 0}</div>
         </div>
-        <div className="bg-gray-50 rounded p-3">
-          <div className="text-xs text-gray-500">Completion Tokens</div>
+        <div className="bg-slate-50 rounded p-3">
+          <div className="text-xs text-slate-500">Completion Tokens</div>
           <div className="text-lg font-semibold">{usage.completion_tokens ?? 0}</div>
         </div>
-        <div className="bg-blue-50 rounded p-3 col-span-2">
-          <div className="text-xs text-blue-500">Total Tokens</div>
-          <div className="text-lg font-semibold text-blue-700">{usage.total ?? 0}</div>
+        <div className="bg-indigo-50 rounded p-3 col-span-2">
+          <div className="text-xs text-indigo-500">Total Tokens</div>
+          <div className="text-lg font-semibold text-indigo-700">{usage.total ?? 0}</div>
         </div>
       </div>
     </div>

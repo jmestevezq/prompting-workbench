@@ -131,12 +131,12 @@ export default function UserProfiles() {
   return (
     <div className="h-full flex">
       {/* Left panel — profile list */}
-      <div className="w-80 border-r border-gray-200 flex flex-col bg-white">
-        <div className="p-3 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-700">User Profiles</h2>
+      <div className="w-80 border-r border-slate-200 flex flex-col bg-white">
+        <div className="p-3 border-b border-slate-200 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-700">User Profiles</h2>
           <button
             onClick={handleNew}
-            className="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="px-3 py-1 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700"
           >
             New Profile
           </button>
@@ -154,60 +154,60 @@ export default function UserProfiles() {
       {/* Right panel — detail / create */}
       <div className="flex-1 p-6 overflow-auto">
         {!selected && !creating ? (
-          <div className="text-gray-400 text-sm">Select a profile or create a new one</div>
+          <div className="text-slate-400 text-sm">Select a profile or create a new one</div>
         ) : (
           <div className="max-w-2xl space-y-4">
             <div className="flex gap-4">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   placeholder="Profile name"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Simulation Date</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Simulation Date</label>
                 <input
                   type="date"
                   value={simulationDate}
                   onChange={(e) => setSimulationDate(e.target.value)}
-                  className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Profile Data (JSON)</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Profile Data (JSON)</label>
               <JsonEditor value={jsonData} onChange={setJsonData} height="300px" />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
                 Transactions (JSON)
                 {!selectedTx && !creating && (
-                  <span className="ml-2 text-xs text-gray-400">No transactions fixture — will be created on save</span>
+                  <span className="ml-2 text-xs text-slate-400">No transactions fixture — will be created on save</span>
                 )}
               </label>
               <JsonEditor value={txJsonData} onChange={setTxJsonData} height="300px" />
             </div>
 
-            {error && <div className="text-red-600 text-sm">{error}</div>}
+            {error && <div className="text-rose-600 text-sm">{error}</div>}
 
             <div className="flex gap-2">
               <button
                 onClick={handleSave}
                 disabled={saving || !name.trim()}
-                className="px-4 py-1.5 text-sm font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                className="px-4 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
               >
                 {saving ? 'Saving...' : creating ? 'Create' : 'Save'}
               </button>
               {selected && !creating && (
                 <button
                   onClick={handleDelete}
-                  className="px-4 py-1.5 text-sm font-medium bg-red-600 text-white rounded hover:bg-red-700"
+                  className="px-4 py-1.5 text-sm font-medium bg-rose-600 text-white rounded hover:bg-rose-700"
                 >
                   Delete
                 </button>
