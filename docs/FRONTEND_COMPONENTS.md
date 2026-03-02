@@ -28,7 +28,7 @@ Mounts the React application into the DOM. Wraps `<App>` with no additional prov
 
 ### `src/App.tsx`
 
-Defines the router tree with React Router v7. All pages are children of the `<Layout>` route, which provides the persistent navigation shell:
+Wraps the entire application with `<ToastProvider>` (for global toast notifications), then defines the router tree with React Router v7. All pages are children of the `<Layout>` route, which provides the persistent navigation shell:
 
 ```
 / → redirect to /playground
@@ -219,12 +219,24 @@ Displays evaluation metrics in a card layout:
 - Per-label or per-category precision/recall/F1 in a table
 - Color-coded (green ≥0.8, yellow ≥0.6, red <0.6)
 
+### `src/components/Toast.tsx`
+
+Individual toast notification. Types: `success` (emerald-600), `error` (rose-600), `info` (sky-600), `warning` (amber-600). Each type has an icon prefix (✓ ✗ ℹ ⚠). Auto-dismisses after `duration` ms with a fade-out. Close button dismisses immediately. Positioning is delegated to `ToastProvider` — this component renders without a fixed position.
+
+### `src/components/ToastProvider.tsx`
+
+Global toast context provider. Renders a stacked `Toast` container fixed at bottom-right (z-50, gap-2). API via `useToast()` hook:
+- `addToast(message, type?, duration?)` — adds a toast; defaults: type `'success'`, duration 3000ms (success/info) or 5000ms (error/warning); oldest removed when count exceeds 4
+- `removeToast(id)` — removes by ID (called by auto-dismiss and close button)
+
+Must wrap the app root. Usage: `import { useToast } from '../components/ToastProvider'` in any component.
+
 ### `src/components/StatusBadge.tsx`
 
 A pill-shaped (`rounded-full`) inline badge component for status values. Maps status strings to colors:
 - `completed` / `pass` → emerald-50/700
 - `failed` / `fail` → rose-50/700
-- `running` → indigo-50/700
+- `running` → indigo-50/700 + animated SVG spinner prefix
 - `pending` → amber-50/700
 - Fallback → slate-100/600
 
@@ -289,8 +301,9 @@ Three-tab page with horizontal TabBar at top, full-width content below:
 
 **Tab 2: Autoraters**
 - Lists autoraters; click to select
-- Editor pane: name, prompt (with `{{transcript}}` placeholder), model, output schema
-- Save updates via `api.updateAutorater()`
+- Editor pane: name, prompt (with `{{transcript}}` placeholder), model
+- `isDirty` tracking via `useMemo`; save button disabled when clean or saving; amber "• Unsaved changes" indicator
+- Save updates via `api.updateAutorater()` with success/error toast
 
 **Tab 3: Eval Runs**
 - Run launcher: select autorater + transcripts (via `TranscriptPicker`) + optional eval tags
@@ -314,10 +327,13 @@ Three-tab page (same structure as Autorater):
 
 **Tab 2: Prompts**
 - List + editor for classification prompt templates
+- `isDirty` tracking; save button disabled when clean or saving; amber "• Unsaved changes" indicator; success/error toasts
 - Placeholder reference shown in UI
 
 **Tab 3: Eval Runs**
 - Run launcher: select prompt + golden set name
+- Polls active runs every 2000ms via `pollingRef` + `pollRun` (matching Autorater's pattern)
+- Success/error toasts on run completion/failure
 - Run history with `exact_match_rate`, per-category precision/recall/F1
 - Per-entry results with match details (per-transaction category comparison)
 

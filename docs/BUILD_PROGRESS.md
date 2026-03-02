@@ -118,8 +118,36 @@ Premium developer-tool aesthetic (Linear/Vercel light mode style):
 
 **Unchanged pages:** Classification (still uses SubNav), UserProfiles, Playground
 
+## Phase 12: Global Toast System & UX Polish - COMPLETE
+
+**Toast infrastructure:**
+- `ToastProvider.tsx`: React context provider holding a `Toast[]` array. Global `useToast()` hook exposes `addToast(message, type, duration?)`. Renders a stacked container (fixed bottom-right, z-50, max 4 toasts, oldest evicted on overflow). Auto-dismisses after 3s (success/info) or 5s (error/warning).
+- `Toast.tsx` upgraded: added `info` (sky-600) and `warning` (amber-600) types; icon prefix per type (✓ ✗ ℹ ⚠); no longer positioned itself (positioning delegated to `ToastProvider`).
+- `App.tsx`: wrapped with `<ToastProvider>`.
+
+**StatusBadge spinner:**
+- Animated SVG spinner renders inline before the label text when `status === 'running'`. Visible feedback during active eval polling.
+
+**Playground toasts:**
+- `handleAgentUpdate`: success/error toast on agent save.
+- `handleSaveVersion`: success/error toast on version save.
+- `handleSwapFixture`: info toast "Fixtures updated".
+- WS disconnect/reconnect: warning toast on disconnect, info toast on reconnect.
+
+**Autorater dirty state + toasts:**
+- `AutoratersTab`: `isDirty` computed via `useMemo`. Save button disabled when `!isDirty || saving`. Amber "• Unsaved changes" indicator. Replaced inline `saveError` with `addToast`.
+- `EvalRunsTab`: success toast with pass rate on completion; error toast on run failure.
+
+**Classification dirty state + polling + toasts:**
+- `PromptsTab`: same `isDirty` pattern as AutoratersTab, amber indicator, success/error toasts.
+- `ClassificationRunsTab`: added full polling (`pollingRef` + `pollRun`) matching Autorater's pattern — was entirely missing before. Success/error toasts on completion/failure.
+
+**Generator + Agents:**
+- Generator: success toast after each transcript save.
+- Agents: replaced inline `importMsg` state/display with `addToast` calls.
+
 ## Current Status
-All 11 phases complete. The system is fully functional with premium UI and refined navigation.
+All 12 phases complete. The system is fully functional with consistent async feedback across all pages.
 
 ## Test Coverage
 - Backend: Full coverage of all routers and services via pytest
