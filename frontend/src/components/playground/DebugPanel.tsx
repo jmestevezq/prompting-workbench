@@ -36,17 +36,20 @@ export default function DebugPanel({ selectedTurn, onRerun, isStreaming }: Debug
   const [editMode, setEditMode] = useState(false)
   const [editedPrompt, setEditedPrompt] = useState('')
   const [editedToolResponses, setEditedToolResponses] = useState<Record<string, string>>({})
+  const [skipToolCalls, setSkipToolCalls] = useState(false)
 
   // Reset edit state when selected turn changes
   useEffect(() => {
     setEditMode(false)
     setEditedPrompt('')
     setEditedToolResponses({})
+    setSkipToolCalls(false)
   }, [selectedTurn?.id])
 
   const hasPromptEdit = editedPrompt !== ''
   const hasToolEdits = Object.keys(editedToolResponses).length > 0
   const hasAnyEdits = hasPromptEdit || hasToolEdits
+  const hasCalls = Array.isArray(selectedTurn?.tool_calls) && selectedTurn.tool_calls.length > 0
 
   const tabs: { key: Tab; label: string; hasEdit?: boolean }[] = [
     { key: 'prompt', label: 'Prompt', hasEdit: hasPromptEdit },
@@ -76,16 +79,21 @@ export default function DebugPanel({ selectedTurn, onRerun, isStreaming }: Debug
     if (hasEditedResponses) {
       overrides.tool_responses = parsedResponses
     }
+    if (skipToolCalls) {
+      overrides.skip_tool_calls = true
+    }
     onRerun(selectedTurn.id, overrides)
     setEditMode(false)
     setEditedPrompt('')
     setEditedToolResponses({})
+    setSkipToolCalls(false)
   }
 
   const handleCancelEdit = () => {
     setEditMode(false)
     setEditedPrompt('')
     setEditedToolResponses({})
+    setSkipToolCalls(false)
   }
 
   if (!selectedTurn) {
@@ -144,36 +152,50 @@ export default function DebugPanel({ selectedTurn, onRerun, isStreaming }: Debug
       </div>
 
       {/* Controls */}
-      <div className="p-3 border-t border-gray-200 shrink-0 flex items-center gap-2">
-        <button
-          onClick={() => editMode ? handleCancelEdit() : setEditMode(true)}
-          className={`text-xs px-3 py-1.5 rounded border transition-colors ${
-            editMode
-              ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
-              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-          }`}
-        >
-          {editMode ? 'Cancel' : 'Edit'}
-        </button>
-        <button
-          onClick={handleRerun}
-          disabled={isStreaming || (!editMode && !hasAnyEdits)}
-          className={`text-xs px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 ${
-            isStreaming
-              ? 'bg-blue-500 text-white cursor-wait'
-              : editMode || hasAnyEdits
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-          }`}
-        >
-          {isStreaming && (
-            <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-          )}
-          {isStreaming ? 'Generating...' : `Rerun${hasAnyEdits ? ' with edits' : ''}`}
-        </button>
+      <div className="p-3 border-t border-gray-200 shrink-0 space-y-2">
+        {editMode && hasCalls && (
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={skipToolCalls}
+              onChange={(e) => setSkipToolCalls(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+            />
+            <span className="text-xs text-gray-600">Lock responses</span>
+            <span className="text-[10px] text-gray-400" title="Use current tool responses as-is (or edited) and skip new tool calls. Gemini will only generate text.">?</span>
+          </label>
+        )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => editMode ? handleCancelEdit() : setEditMode(true)}
+            className={`text-xs px-3 py-1.5 rounded border transition-colors ${
+              editMode
+                ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            {editMode ? 'Cancel' : 'Edit'}
+          </button>
+          <button
+            onClick={handleRerun}
+            disabled={isStreaming || (!editMode && !hasAnyEdits)}
+            className={`text-xs px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 ${
+              isStreaming
+                ? 'bg-blue-500 text-white cursor-wait'
+                : editMode || hasAnyEdits
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            {isStreaming && (
+              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            )}
+            {isStreaming ? 'Generating...' : `Rerun${hasAnyEdits ? ' with edits' : skipToolCalls ? ' (locked)' : ''}`}
+          </button>
+        </div>
       </div>
     </div>
   )

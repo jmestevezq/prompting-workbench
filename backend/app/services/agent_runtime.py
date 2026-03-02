@@ -190,6 +190,7 @@ async def run_agent_turn(
     system_prompt_override: str | None = None,
     tool_response_overrides: dict | None = None,
     modified_history: list[dict] | None = None,
+    skip_tool_calls: bool = False,
 ) -> AsyncGenerator[dict, None]:
     """Execute one agent turn: call Gemini, handle tool calls, yield streaming events.
 
@@ -234,7 +235,8 @@ async def run_agent_turn(
 
     # Build Gemini-compatible content
     contents = gemini_client.build_contents(history)
-    tools = gemini_client.build_tool_declarations(tool_defs) if tool_defs else None
+    # When skip_tool_calls is set, omit tool declarations so Gemini can only produce text
+    tools = None if skip_tool_calls else (gemini_client.build_tool_declarations(tool_defs) if tool_defs else None)
 
     # Agent loop: call Gemini, handle tool calls, repeat until text response
     all_tool_calls = []
@@ -429,7 +431,36 @@ async def rerun_turn(
     # Apply overrides
     system_prompt_override = overrides.get("system_prompt")
     tool_response_overrides = overrides.get("tool_responses")
+    skip_tool_calls = overrides.get("skip_tool_calls", False)
     modified_history = overrides.get("modified_history", history)
+
+    # "Lock responses" mode: inject original tool call/response pairs into history
+    # so Gemini sees them as already-answered context and only generates text.
+    if skip_tool_calls and original_turn["tool_calls"]:
+        orig_calls = json.loads(original_turn["tool_calls"])
+        orig_responses = json.loads(original_turn["tool_responses"]) if original_turn["tool_responses"] else []
+
+        # Apply any edited overrides to the responses
+        patched_responses = []
+        for i, tc in enumerate(orig_calls):
+            if tool_response_overrides and tc["name"] in tool_response_overrides:
+                patched_responses.append({"name": tc["name"], "response": tool_response_overrides[tc["name"]]})
+            elif i < len(orig_responses):
+                patched_responses.append(orig_responses[i])
+
+        # Append tool_call + tool_response entries to history
+        for tc in orig_calls:
+            modified_history.append({
+                "role": "tool_call",
+                "content": json.dumps(tc),
+                "tool_call": tc,
+            })
+        for tr in patched_responses:
+            modified_history.append({
+                "role": "tool_response",
+                "content": json.dumps(tr["response"]),
+                "tool_response": tr,
+            })
 
     # Run agent turn with overrides
     async for event in run_agent_turn(
@@ -437,5 +468,6 @@ async def rerun_turn(
         system_prompt_override=system_prompt_override,
         tool_response_overrides=tool_response_overrides,
         modified_history=modified_history,
+        skip_tool_calls=skip_tool_calls,
     ):
         yield event

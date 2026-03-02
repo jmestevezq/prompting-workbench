@@ -118,6 +118,7 @@ export default function Playground() {
           )
           return updated
         })
+        setSelectedTurn(msg.turn)
         setIsStreaming(false)
         break
 
@@ -140,6 +141,20 @@ export default function Playground() {
 
   const handleRerun = (turnId: string, overrides: Record<string, unknown>) => {
     if (!wsRef.current?.connected) return
+    // Remove the old agent turn and its tool_call/tool_response messages from the chat
+    // so the new rerun results replace them cleanly
+    setMessages((prev) => {
+      const turnMsgIdx = prev.findIndex((m) => m.turnData?.id === turnId)
+      if (turnMsgIdx === -1) return prev
+      // Walk backwards from the agent message to find the first tool_call/tool_response
+      // that belongs to this turn (they appear just before the agent text)
+      let startIdx = turnMsgIdx
+      while (startIdx > 0 && (prev[startIdx - 1].role === 'tool_call' || prev[startIdx - 1].role === 'tool_response')) {
+        startIdx--
+      }
+      return prev.slice(0, startIdx)
+    })
+    setSelectedTurn(null)
     setIsStreaming(true)
     wsRef.current.send({ type: 'rerun_turn', turn_id: turnId, overrides })
   }
