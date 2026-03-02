@@ -374,7 +374,20 @@ function MessageBubble({
   }
 
   if (role === 'agent') {
-    const parsed = !streaming ? tryParseRenderableBlocks(content) : null
+    // While streaming: show plain text with cursor — no markdown parsing, no widget detection
+    if (streaming) {
+      return (
+        <div className="flex gap-2">
+          <div className="bg-slate-100 rounded-2xl px-3 py-2 max-w-[85%] text-sm">
+            <span className="whitespace-pre-wrap text-slate-800">{content}</span>
+            <span className="inline-block w-1.5 h-4 bg-indigo-500 animate-pulse ml-0.5 align-middle" />
+          </div>
+        </div>
+      )
+    }
+
+    // After complete: try to parse widget blocks
+    const parsed = tryParseRenderableBlocks(content)
 
     // If we have renderable blocks, show rendered/json toggle
     if (parsed) {
@@ -430,7 +443,7 @@ function MessageBubble({
               </>
             )}
           </div>
-          {!streaming && message.turnData && (
+          {message.turnData && (
             <button
               className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 text-xs self-start mt-1"
               title="Inspect turn"
@@ -453,8 +466,7 @@ function MessageBubble({
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
             </div>
           )}
-          {streaming && <span className="inline-block w-1.5 h-4 bg-indigo-500 animate-pulse ml-0.5" />}
-          {!streaming && content && (
+          {content && (
             <button
               onClick={(e) => { e.stopPropagation(); setShowRaw(!showRaw) }}
               className="mt-1 text-[10px] text-slate-400 hover:text-slate-600"
@@ -463,7 +475,7 @@ function MessageBubble({
             </button>
           )}
         </div>
-        {!streaming && message.turnData && (
+        {message.turnData && (
           <button
             className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 text-xs self-start mt-1"
             title="Inspect turn"
