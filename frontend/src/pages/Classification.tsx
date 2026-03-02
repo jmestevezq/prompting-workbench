@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { api } from '../api/client'
 import type {
   GoldenTransaction, ClassificationPrompt, ClassificationRun, ClassificationResult,
@@ -9,6 +9,7 @@ import StatusBadge from '../components/StatusBadge'
 import PromptEditor from '../components/PromptEditor'
 import JsonEditor from '../components/JsonEditor'
 import SubNav from '../components/SubNav'
+import { useToast } from '../components/ToastProvider'
 import { Database, FileCode2, Play } from 'lucide-react'
 
 type Tab = 'golden-sets' | 'prompts' | 'eval-runs'
@@ -145,6 +146,13 @@ function PromptsTab() {
   const [editName, setEditName] = useState('')
   const [editTemplate, setEditTemplate] = useState('')
   const [editModel, setEditModel] = useState('gemini-2.5-pro')
+  const [saving, setSaving] = useState(false)
+  const { addToast } = useToast()
+
+  const isDirty = useMemo(() => {
+    if (!selected) return false
+    return editName !== selected.name || editTemplate !== selected.prompt_template || editModel !== selected.model
+  }, [selected, editName, editTemplate, editModel])
 
   useEffect(() => {
     api.listClassificationPrompts().then(setPrompts)
@@ -158,7 +166,9 @@ function PromptsTab() {
   }
 
   const handleSave = async () => {
-    if (selected) {
+    if (!selected) return
+    setSaving(true)
+    try {
       const updated = await api.updateClassificationPrompt(selected.id, {
         name: editName,
         prompt_template: editTemplate,
@@ -166,6 +176,11 @@ function PromptsTab() {
       })
       setPrompts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
       setSelected(updated)
+      addToast('Prompt saved', 'success')
+    } catch {
+      addToast('Failed to save', 'error')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -218,7 +233,16 @@ function PromptsTab() {
               </label>
               <PromptEditor value={editTemplate} onChange={setEditTemplate} height="300px" />
             </div>
-            <button onClick={handleSave} className="bg-indigo-600 text-white px-4 py-2 rounded text-sm">Save</button>
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+              {isDirty && <span className="text-xs text-amber-500">• Unsaved changes</span>}
+              <button
+                onClick={handleSave}
+                disabled={!isDirty || saving}
+                className="ml-auto bg-indigo-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
           </div>
         </div>
       ) : (
@@ -238,11 +262,53 @@ function ClassificationRunsTab() {
   const [selectedPromptId, setSelectedPromptId] = useState('')
   const [selectedSetName, setSelectedSetName] = useState('')
   const [launching, setLaunching] = useState(false)
+  const pollingRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
+  const { addToast } = useToast()
+
+  const pollRun = useCallback((runId: string) => {
+    if (pollingRef.current.has(runId)) return
+
+    const interval = setInterval(async () => {
+      try {
+        const latest = await api.getClassificationRun(runId)
+        setRuns((prev) => prev.map((r) => (r.id === runId ? latest : r)))
+
+        if (latest.status !== 'running') {
+          clearInterval(interval)
+          pollingRef.current.delete(runId)
+
+          if (latest.status === 'completed') {
+            setSelectedRun(latest)
+            const res = await api.getClassificationResults(runId)
+            setResults(res)
+            addToast('Classification run completed', 'success')
+          } else if (latest.status === 'failed') {
+            addToast('Classification run failed', 'error')
+          }
+        }
+      } catch {
+        // Network error — keep polling
+      }
+    }, 2000)
+
+    pollingRef.current.set(runId, interval)
+  }, [addToast])
 
   useEffect(() => {
     api.listClassificationPrompts().then(setPrompts)
     api.listGoldenSets().then(setGoldenSets)
-    api.listClassificationRuns().then(setRuns)
+    api.listClassificationRuns().then((loadedRuns) => {
+      setRuns(loadedRuns)
+      loadedRuns.filter((r) => r.status === 'running').forEach((r) => pollRun(r.id))
+    })
+  }, [pollRun])
+
+  useEffect(() => {
+    const ref = pollingRef.current
+    return () => {
+      ref.forEach((interval) => clearInterval(interval))
+      ref.clear()
+    }
   }, [])
 
   const setNames = [...new Set(goldenSets.map((g) => g.set_name))]
@@ -253,6 +319,7 @@ function ClassificationRunsTab() {
     try {
       const run = await api.startClassificationRun(selectedPromptId, selectedSetName)
       setRuns((prev) => [run, ...prev])
+      pollRun(run.id)
     } finally {
       setLaunching(false)
     }

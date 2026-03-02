@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import { ChatWebSocket } from '../api/websocket'
 import type { Agent, Fixture, Session, Turn, WsServerMessage, ToolCall } from '../api/types'
 import { useAppStore } from '../store'
+import { useToast } from '../components/ToastProvider'
 import AgentConfigPanel from '../components/playground/AgentConfigPanel'
 import ChatPanel from '../components/playground/ChatPanel'
 import DebugPanel from '../components/playground/DebugPanel'
@@ -19,6 +20,7 @@ interface ChatMessage {
 
 export default function Playground() {
   const { activeAgent, setActiveAgent, fixtures, setFixtures } = useAppStore()
+  const { addToast } = useToast()
   const [agents, setAgents] = useState<Agent[]>([])
   const [session, setSession] = useState<Session | null>(null)
   const [selectedFixtureIds, setSelectedFixtureIds] = useState<string[]>([])
@@ -27,6 +29,7 @@ export default function Playground() {
   const [toolOverrides, setToolOverrides] = useState<Record<string, { data: unknown; active: boolean }>>({})
   const wsRef = useRef<ChatWebSocket | null>(null)
   const [wsConnected, setWsConnected] = useState(false)
+  const wasConnectedRef = useRef(false)
   const [isStreaming, setIsStreaming] = useState(false)
 
   // Keep a ref to selectedFixtureIds so startSession always reads the latest
@@ -72,6 +75,7 @@ export default function Playground() {
     try {
       await ws.connect()
       setWsConnected(true)
+      wasConnectedRef.current = true
     } catch {
       setMessages((prev) => [...prev, { role: 'system', content: 'Failed to connect to WebSocket' }])
     }
@@ -182,6 +186,7 @@ export default function Playground() {
   const handleSwapFixture = () => {
     if (!wsRef.current?.connected) return
     wsRef.current.send({ type: 'swap_fixture', fixture_ids: fixtureIdsRef.current })
+    addToast('Fixtures updated', 'info')
   }
 
   const handleSetToolOverride = (overrides: Record<string, { data: unknown; active: boolean }>) => {
@@ -205,15 +210,38 @@ export default function Playground() {
 
   const handleAgentUpdate = async (updates: Partial<Agent>) => {
     if (!activeAgent) return
-    const updated = await api.updateAgent(activeAgent.id, updates)
-    setActiveAgent(updated)
-    setAgents((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
+    try {
+      const updated = await api.updateAgent(activeAgent.id, updates)
+      setActiveAgent(updated)
+      setAgents((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
+      addToast('Agent saved', 'success')
+    } catch {
+      addToast('Failed to save agent', 'error')
+    }
   }
 
   const handleSaveVersion = async (label: string) => {
     if (!activeAgent) return
-    await api.createVersion(activeAgent.id, label)
+    try {
+      await api.createVersion(activeAgent.id, label)
+      addToast('Version saved', 'success')
+    } catch {
+      addToast('Failed to save version', 'error')
+    }
   }
+
+  // WS disconnect/reconnect toasts
+  useEffect(() => {
+    if (!wsConnected && wasConnectedRef.current) {
+      addToast('Connection lost — attempting to reconnect', 'warning')
+    } else if (wsConnected && wasConnectedRef.current) {
+      // Only show reconnect toast if it was previously disconnected (not first connect)
+      // We track this by checking if session is already set
+      if (session) {
+        addToast('Reconnected', 'info')
+      }
+    }
+  }, [wsConnected]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cleanup on unmount
   useEffect(() => {

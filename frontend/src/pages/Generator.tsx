@@ -4,6 +4,7 @@ import type { Agent, Transcript } from '../api/types'
 import PromptEditor from '../components/PromptEditor'
 import TranscriptPicker from '../components/TranscriptPicker'
 import TagEditor from '../components/TagEditor'
+import { useToast } from '../components/ToastProvider'
 
 interface GeneratedItem {
   name: string
@@ -29,6 +30,7 @@ export default function Generator() {
   const [model, setModel] = useState('gemini-2.5-pro')
   const [generating, setGenerating] = useState(false)
   const [items, setItems] = useState<GeneratedItem[]>([])
+  const { addToast } = useToast()
 
   // Collect all known tags for autocomplete
   const allTags = useMemo(() => {
@@ -90,6 +92,7 @@ export default function Generator() {
       })
       updateItem(index, { savedId: saved.id, saving: false })
       api.listTranscripts().then(setTranscripts)
+      addToast('Transcript saved', 'success')
     } catch {
       updateItem(index, { saving: false })
     }

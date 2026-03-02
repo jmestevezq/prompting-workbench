@@ -20,3 +20,20 @@ class FixtureResponse(BaseModel):
     type: str
     data: Any
     created_at: str
+
+
+class GenerateTransactionsRequest(BaseModel):
+    prompt: str
+    start_date: str  # YYYY-MM-DD
+    end_date: str    # YYYY-MM-DD
+    profile_data: Optional[Any] = None
+
+
+class GenerateProfileResponse(BaseModel):
+    name: str
+    data: Any
+
+
+class GenerateTransactionsResponse(BaseModel):
+    transactions: Any  # list of transaction dicts
+    count: int

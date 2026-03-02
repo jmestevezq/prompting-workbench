@@ -3,7 +3,11 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException
 
 from app.database import get_db
-from app.schemas.fixture import FixtureCreate, FixtureUpdate, FixtureResponse
+from app.services.fixture_generator import generate_profile, generate_transactions
+from app.schemas.fixture import (
+    FixtureCreate, FixtureUpdate, FixtureResponse,
+    GenerateTransactionsRequest, GenerateProfileResponse, GenerateTransactionsResponse,
+)
 
 router = APIRouter(prefix="/api/fixtures", tags=["fixtures"])
 
@@ -34,6 +38,33 @@ async def create_fixture(fixture: FixtureCreate):
         return _row_to_fixture(row)
     finally:
         await db.close()
+
+
+@router.post("/generate-profile", response_model=GenerateProfileResponse)
+async def generate_profile_endpoint():
+    try:
+        result = await generate_profile()
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Generation failed: {e}")
+
+
+@router.post("/generate-transactions", response_model=GenerateTransactionsResponse)
+async def generate_transactions_endpoint(req: GenerateTransactionsRequest):
+    try:
+        transactions = await generate_transactions(
+            prompt=req.prompt,
+            start_date=req.start_date,
+            end_date=req.end_date,
+            profile_data=req.profile_data,
+        )
+        return {"transactions": transactions, "count": len(transactions)}
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Generation failed: {e}")
 
 
 @router.get("/{fixture_id}", response_model=FixtureResponse)

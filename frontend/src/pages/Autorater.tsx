@@ -12,6 +12,7 @@ import TagBadge from '../components/TagBadge'
 import Toast from '../components/Toast'
 import TabBar from '../components/TabBar'
 import Generator from './Generator'
+import { useToast } from '../components/ToastProvider'
 import { FileText, Bot, Play, Sparkles } from 'lucide-react'
 
 type Tab = 'transcripts' | 'autoraters' | 'eval-runs' | 'generator'
@@ -272,7 +273,12 @@ function AutoratersTab() {
   const [editPrompt, setEditPrompt] = useState('')
   const [editModel, setEditModel] = useState('gemini-2.5-pro')
   const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState('')
+  const { addToast } = useToast()
+
+  const isDirty = useMemo(() => {
+    if (!selected) return false
+    return editName !== selected.name || editPrompt !== selected.prompt || editModel !== selected.model
+  }, [selected, editName, editPrompt, editModel])
 
   useEffect(() => {
     api.listAutoraters().then(setAutoraters)
@@ -288,7 +294,6 @@ function AutoratersTab() {
   const handleSave = async () => {
     if (!selected) return
     setSaving(true)
-    setSaveError('')
     try {
       const updated = await api.updateAutorater(selected.id, {
         name: editName,
@@ -297,8 +302,9 @@ function AutoratersTab() {
       })
       setAutoraters((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
       setSelected(updated)
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to save')
+      addToast('Autorater saved', 'success')
+    } catch {
+      addToast('Failed to save', 'error')
     } finally {
       setSaving(false)
     }
@@ -355,15 +361,15 @@ function AutoratersTab() {
               <label className="text-xs font-medium text-slate-500 mb-1 block">Prompt (use {'{{transcript}}'} placeholder)</label>
               <PromptEditor value={editPrompt} onChange={setEditPrompt} height="300px" />
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+              {isDirty && <span className="text-xs text-amber-500">• Unsaved changes</span>}
               <button
                 onClick={handleSave}
-                disabled={saving}
-                className="bg-indigo-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
+                disabled={!isDirty || saving}
+                className="ml-auto bg-indigo-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
               >
                 {saving ? 'Saving...' : 'Save'}
               </button>
-              {saveError && <span className="text-rose-600 text-sm">{saveError}</span>}
             </div>
           </div>
         </div>
@@ -385,6 +391,7 @@ function EvalRunsTab() {
   const [selectedAutoraterId, setSelectedAutoraterId] = useState('')
   const [launching, setLaunching] = useState(false)
   const pollingRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
+  const { addToast } = useToast()
 
   // Eval tags for per-tag P/R
   const [selectedEvalTags, setSelectedEvalTags] = useState<Set<string>>(new Set())
@@ -418,6 +425,13 @@ function EvalRunsTab() {
             setSelectedRun(latest)
             const res = await api.getEvalResults(runId)
             setResults(res)
+            const acc = latest.metrics?.pass_rate
+            const msg = acc != null
+              ? `Eval completed — ${Math.round(acc * 100)}% pass rate`
+              : 'Eval completed'
+            addToast(msg, 'success')
+          } else if (latest.status === 'failed') {
+            addToast('Eval run failed', 'error')
           }
         }
       } catch {

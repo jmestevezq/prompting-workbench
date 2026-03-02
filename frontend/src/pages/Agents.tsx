@@ -5,6 +5,7 @@ import DataTable from '../components/DataTable'
 import PromptEditor from '../components/PromptEditor'
 import StatusBadge from '../components/StatusBadge'
 import TabBar from '../components/TabBar'
+import { useToast } from '../components/ToastProvider'
 import { LayoutList, FileCode2, GitBranch } from 'lucide-react'
 
 type Tab = 'overview' | 'template' | 'versions'
@@ -22,7 +23,7 @@ export default function Agents() {
   const [folders, setFolders] = useState<string[]>([])
   const [importFolder, setImportFolder] = useState('')
   const [importing, setImporting] = useState(false)
-  const [importMsg, setImportMsg] = useState('')
+  const { addToast } = useToast()
 
   const loadAgents = async () => {
     const list = await api.listAgents()
@@ -46,13 +47,12 @@ export default function Agents() {
     const target = folder || importFolder
     if (!target) return
     setImporting(true)
-    setImportMsg('')
     try {
-      const result = await api.importAgent(target)
-      setImportMsg(result.message)
+      await api.importAgent(target)
       await loadAgents()
-    } catch (e) {
-      setImportMsg(e instanceof Error ? e.message : 'Import failed')
+      addToast('Agents imported successfully', 'success')
+    } catch {
+      addToast('Failed to import agents', 'error')
     } finally {
       setImporting(false)
     }
@@ -116,9 +116,6 @@ export default function Agents() {
           ) : (
             <div className="text-xs text-slate-400">No agent folders available</div>
           )}
-          {importMsg && (
-            <div className="text-xs text-slate-600 bg-slate-50 p-1.5 rounded mt-1.5">{importMsg}</div>
-          )}
         </div>
       </div>
 
@@ -131,7 +128,6 @@ export default function Agents() {
               agent={selected}
               onImport={handleImport}
               importing={importing}
-              importMsg={importMsg}
               onRefresh={loadAgents}
               onSelect={handleSelect}
             />
@@ -151,14 +147,12 @@ function OverviewTab({
   agent,
   onImport,
   importing,
-  importMsg,
   onRefresh,
   onSelect,
 }: {
   agent: Agent | null
   onImport: (folder: string) => Promise<void>
   importing: boolean
-  importMsg: string
   onRefresh: () => Promise<void>
   onSelect: (a: Agent) => void
 }) {
@@ -223,9 +217,6 @@ function OverviewTab({
         </button>
       </div>
 
-      {importMsg && (
-        <div className="text-sm text-slate-600 bg-slate-50 p-2 rounded">{importMsg}</div>
-      )}
     </div>
   )
 }

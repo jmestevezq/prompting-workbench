@@ -2,9 +2,16 @@ import { useEffect, useState } from 'react'
 
 interface ToastProps {
   message: string
-  type?: 'success' | 'error'
+  type?: 'success' | 'error' | 'info' | 'warning'
   duration?: number
   onClose: () => void
+}
+
+const TYPE_STYLES: Record<NonNullable<ToastProps['type']>, { bg: string; icon: string }> = {
+  success: { bg: 'bg-emerald-600', icon: '✓' },
+  error: { bg: 'bg-rose-600', icon: '✗' },
+  info: { bg: 'bg-sky-600', icon: 'ℹ' },
+  warning: { bg: 'bg-amber-600', icon: '⚠' },
 }
 
 export default function Toast({ message, type = 'success', duration = 2500, onClose }: ToastProps) {
@@ -18,14 +25,15 @@ export default function Toast({ message, type = 'success', duration = 2500, onCl
     return () => clearTimeout(timer)
   }, [duration, onClose])
 
-  const bg = type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'
+  const { bg, icon } = TYPE_STYLES[type]
 
   return (
     <div
-      className={`fixed bottom-4 right-4 z-50 flex items-center px-4 py-2 rounded-lg text-white text-sm shadow-lg transition-opacity duration-200 ${bg} ${
+      className={`flex items-center px-4 py-2 rounded-lg text-white text-sm shadow-lg transition-opacity duration-200 ${bg} ${
         visible ? 'opacity-100' : 'opacity-0'
       }`}
     >
+      <span className="mr-2 font-bold">{icon}</span>
       <span>{message}</span>
       <button
         onClick={() => { setVisible(false); setTimeout(onClose, 200) }}
