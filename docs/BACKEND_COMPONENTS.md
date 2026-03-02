@@ -88,11 +88,20 @@ On import, the agent's `agent.yaml` + `prompt.ftl` are loaded via `agent_loader.
 
 Each `agent_versions` record stores the full `raw_template`, `variables`, `variable_definitions`, `system_prompt`, `tool_details`, `widget_details`, and `tools` list. The `source` field is `"file"` for imported versions or `"ui"` for manually created ones. `is_base=1` marks the canonical version imported from disk.
 
-### `app/routers/fixtures.py` — Fixture CRUD
+### `app/routers/fixtures.py` — Fixture CRUD + AI Generation
 
 Prefix: `/api/fixtures`
 
 Standard CRUD for data fixtures (user profiles, transaction lists). The `data` field is an arbitrary JSON object stored as TEXT.
+
+**AI Generation endpoints** (declared before `/{fixture_id}` to avoid path conflicts):
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/generate-profile` | Generate a random Indian user profile via Gemini. Returns `{name, data}`. |
+| `POST` | `/generate-transactions` | Generate transactions via Gemini. Accepts `{prompt, start_date, end_date, profile_data?}`. Returns `{transactions, count}`. |
+
+Both endpoints return 502 on generation/validation failures.
 
 ### `app/routers/sessions.py` — Session Management
 
@@ -430,12 +439,26 @@ The bundled `sherlock-finance` agent demonstrates all variable types, multi-tool
 
 ---
 
+### `app/services/fixture_generator.py` — AI Fixture Generation
+
+Uses Gemini to generate realistic test fixture data.
+
+**Validation functions:**
+- `validate_profile(data)` — Validates profile schema (required fields: `ageYears`, `location`, `monthlyIncomeRange`, `creditScore`, `bankAccounts`, `cards` with nested field checks). Returns list of error strings.
+- `validate_transactions(data)` — Validates transaction list schema (required fields: `transactionId`, `date`, `counterpartyName`, `transactionType`, `amount`, `transactionDirection`; format checks on date, type, direction; P2M must have `merchantCategory`). Returns list of error strings.
+
+**Generation functions:**
+- `generate_profile()` — Sends a structured prompt to Gemini requesting a random Indian user profile. Uses `response_mime_type="application/json"` and `temperature=1.2` for variety. Validates response before returning `{name, data}`.
+- `generate_transactions(prompt, start_date, end_date, profile_data?)` — Sends user prompt + date range + optional profile context to Gemini. Handles wrapper objects. Validates all generated transactions. Returns list of transaction dicts.
+
+---
+
 ## Schemas (`app/schemas/`)
 
 Pydantic v2 models for request validation and response serialization:
 
 - `agent.py` — `AgentCreate`, `AgentUpdate`, `AgentResponse`, `PromptVersionCreate`, `PromptVersionResponse`, `PromptVersionLabelUpdate`, `AgentVersionCreate`, `AgentVersionResponse`, `AgentImportResponse`, `AgentTemplateResponse`
-- `fixture.py` — `FixtureCreate`, `FixtureUpdate`, `FixtureResponse`
+- `fixture.py` — `FixtureCreate`, `FixtureUpdate`, `FixtureResponse`, `GenerateTransactionsRequest`, `GenerateProfileResponse`, `GenerateTransactionsResponse`
 - `session.py` — `SessionCreate`, `SessionResponse`, `TurnResponse`
 - `transcript.py` — `TranscriptCreate`, `TranscriptUpdate`, `TranscriptResponse`, `TranscriptImport`
 - `autorater.py` — `AutoraterCreate`, `AutoraterUpdate`, `AutoraterResponse`, `EvalRunCreate`, `EvalRunResponse`, `EvalResultResponse`

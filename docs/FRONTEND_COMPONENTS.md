@@ -50,7 +50,7 @@ Wraps the entire application with `<ToastProvider>` (for global toast notificati
 All types mirror the backend Pydantic schemas. Organized into groups:
 
 - **Agent types:** `Agent`, `AgentCreate`, `AgentUpdate`, `ToolDefinition`, `PromptVersion`
-- **Fixture types:** `Fixture`, `FixtureCreate`
+- **Fixture types:** `Fixture`, `FixtureCreate`, `GenerateTransactionsRequest`, `GenerateProfileResponse`, `GenerateTransactionsResponse`
 - **Session types:** `Session`, `SessionCreate`, `Turn`, `ToolCall`, `ToolResponse`, `TokenUsage`
 - **Transcript types:** `Transcript`, `TranscriptCreate`
 - **Autorater types:** `Autorater`, `AutoraterCreate`, `EvalRun`, `EvalMetrics`, `EvalResult`
@@ -87,6 +87,8 @@ api.listFixtures()
 api.createFixture(data)
 api.updateFixture(id, data)
 api.deleteFixture(id)
+api.generateProfile()
+api.generateTransactions(data)
 // Eval / classification / generation
 api.startEvalRun(autorater_id, transcript_ids, eval_tags?)
 api.generateTranscripts(data)
@@ -378,6 +380,15 @@ Two-panel page for managing user profile and transaction fixtures:
   - Transactions JSON editor (linked `transactions` fixture)
 - Create: saves both the user profile fixture and updates/creates a linked transactions fixture
 - Delete: removes the profile fixture
+
+**AI Generation features:**
+
+- **Auto-generate profile:** Clicking "New Profile" calls `POST /api/fixtures/generate-profile` to create a random Indian user profile via Gemini. Shows a loading spinner ("Generating random user profile with Gemini...") and disables the button during generation. On success, populates the name and profile JSON fields. Falls back to an empty form on error with an error message.
+- **Generate Transactions panel:** When creating a new profile, a panel appears to the right of the transactions editor with:
+  - Multi-line textarea pre-filled with a default prompt (date range: 3 months ago to today, requesting varied categories, salary, rent, P2P, INR only)
+  - "Generate" button that calls `POST /api/fixtures/generate-transactions` with the prompt, date range, and current profile data as context
+  - Spinner + "This may take 15-30 seconds..." message during generation
+  - On success, populates the transactions JSON editor with generated data
 
 ### `src/pages/Settings.tsx` — Settings
 

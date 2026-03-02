@@ -146,15 +146,37 @@ Premium developer-tool aesthetic (Linear/Vercel light mode style):
 - Generator: success toast after each transcript save.
 - Agents: replaced inline `importMsg` state/display with `addToast` calls.
 
+## Phase 13: AI-Powered Fixture Generation - COMPLETE
+
+**Backend:**
+- `fixture_generator.py`: New service with `validate_profile()`, `validate_transactions()`, `generate_profile()`, `generate_transactions()` — uses Gemini with structured JSON output and validation
+- `POST /api/fixtures/generate-profile`: Generates random Indian user profile via Gemini (temperature 1.2 for variety)
+- `POST /api/fixtures/generate-transactions`: Generates transactions from user prompt + date range + optional profile context
+- New schemas: `GenerateTransactionsRequest`, `GenerateProfileResponse`, `GenerateTransactionsResponse`
+- Comprehensive validation: profile schema checks (required fields, nested objects, types), transaction schema checks (date format, P2M/P2P types, DEBIT/CREDIT directions, merchantCategory requirement)
+
+**Frontend:**
+- "New Profile" auto-generates a random user profile on click (calls Gemini, populates form)
+- Loading spinner + "Generating random user profile with Gemini..." indicator during profile generation
+- "Generate Transactions" panel alongside transaction editor when creating new profiles
+- Pre-filled prompt with sensible defaults (3-month date range, 20+ tx/week, varied categories, salary/rent/P2P, INR)
+- Generate button with spinner + "This may take 15-30 seconds..." message
+- Error handling with user-visible error messages on generation failure
+- Disabled buttons during generation to prevent double-clicks
+
+**Tests:**
+- Backend: 22 tests (5 profile validation, 8 transaction validation, 2 generate_profile mocked, 3 generate_transactions mocked, 4 endpoint tests)
+- Frontend: 6 tests for UserProfiles page (render, generation indicator, form population, error handling, transaction panel, button state)
+
 ## Current Status
-All 12 phases complete. The system is fully functional with consistent async feedback across all pages.
+All 13 phases complete. The system is fully functional with AI-powered fixture generation for rapid test data creation.
 
 ## Test Coverage
-- Backend: Full coverage of all routers and services via pytest
-- Frontend: Components (DataTable, DiffViewer, MetricsCard, StatusBadge, TranscriptPicker, IconRail, TopBar, SubNav, TabBar, ChatPanel) and API layer tested (165 tests)
+- Backend: 434 tests via pytest (full coverage of all routers and services)
+- Frontend: 171 tests via vitest (components + UserProfiles page)
 
 ## Known Gaps / Future Work
 See docs/EVAL_FUTURE_WORK.md for planned evaluation improvements.
 
-Frontend page-level tests (Agents, UserProfiles, Playground pages) are not yet written — these
-require more complex mocking of the API layer and WebSocket.
+Frontend page-level tests (Agents, Playground pages) are not yet written — these
+require more complex mocking of the API layer and WebSocket. UserProfiles page now has tests.
